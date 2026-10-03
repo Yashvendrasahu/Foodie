@@ -1,0 +1,362 @@
+import React, { useState, useEffect } from 'react';
+import { useApp } from '../../context/AppContext.jsx';
+import {
+  CheckCircle2, Copy, Clock, AlertTriangle, MapPin, Phone,
+  Navigation, XCircle, ShieldCheck, ChevronRight, Share2, Sparkles, Check
+} from 'lucide-react';
+
+export default function BookingConfirmedPage() {
+  const { selectedBookingId, bookings, cancelBooking, navigate, showToast } = useApp();
+  const [copied, setCopied] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  // Timer countdown simulation
+  const [timeLeft, setTimeLeft] = useState({ hours: 1, minutes: 24, seconds: 12 });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev.seconds > 0) return { ...prev, seconds: prev.seconds - 1 };
+        if (prev.minutes > 0) return { ...prev, minutes: prev.minutes - 1, seconds: 59 };
+        if (prev.hours > 0) return { hours: prev.hours - 1, minutes: 59, seconds: 59 };
+        return prev;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const booking = bookings.find((b) => b.id === selectedBookingId) || bookings[0];
+
+  const handleCopy = () => {
+    navigator.clipboard?.writeText(booking.tokenCode || 'FD-4827');
+    setCopied(true);
+    showToast('Token code copied to clipboard!', 'info');
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleCancelOrder = () => {
+    cancelBooking(booking.id);
+    setShowCancelConfirm(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#fafcfb] pb-24">
+      
+      {/* Breadcrumb */}
+      <div className="bg-white border-b border-slate-100 py-3 text-xs text-slate-500">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 flex items-center gap-2">
+          <button onClick={() => navigate('home')} className="hover:text-emerald-700">Home</button>
+          <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+          <button onClick={() => navigate('dashboard')} className="hover:text-emerald-700">My Bookings</button>
+          <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+          <span className="font-semibold text-slate-800">Booking Details ({booking.id})</span>
+        </div>
+      </div>
+
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 mt-8 space-y-8">
+        
+        {/* Confirmed Header */}
+        <div className="text-center space-y-3">
+          <div className="w-16 h-16 rounded-full bg-emerald-700 text-white flex items-center justify-center mx-auto shadow-lg shadow-emerald-700/20">
+            <CheckCircle2 className="w-10 h-10" />
+          </div>
+
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+            Booking Confirmed!
+          </h1>
+          <p className="text-sm text-slate-600 max-w-md mx-auto">
+            Your food has been successfully reserved. Show your digital token at the pickup counter.
+          </p>
+
+          <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3.5 py-1 rounded-full text-xs font-semibold text-emerald-800">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Order #{booking.id} is ready for tonight's pickup window</span>
+          </div>
+        </div>
+
+        {/* Digital Pass / QR Voucher Card */}
+        <div className="bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-200/80">
+          
+          {/* Green Top Header */}
+          <div className="bg-gradient-to-r from-emerald-800 to-emerald-700 text-white p-4 sm:p-5 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center">
+                <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
+                  <path d="M12 3a9 9 0 0 0-9 9v1h18v-1a9 9 0 0 0-9-9zm-1-2h2v2h-2V1zm-9 14h20v2H2v-2zm3 4h14v2H5v-2z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-emerald-200 tracking-wider uppercase">Foodie Rescue Pass</p>
+                <h3 className="text-sm font-extrabold">Pickup Token</h3>
+              </div>
+            </div>
+
+            <span className="bg-emerald-600/90 text-white text-[11px] font-bold px-3 py-1 rounded-full border border-emerald-400/40">
+              ● Confirmed & Verified
+            </span>
+          </div>
+
+          {/* Body */}
+          <div className="p-6 sm:p-8 space-y-6 text-center">
+            
+            {/* Token Code */}
+            <div className="flex items-center justify-between bg-slate-50 p-3 sm:p-4 rounded-2xl border border-slate-200">
+              <div className="text-left">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Pickup Token Code</span>
+                <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-mono tracking-tight">
+                  {booking.tokenCode}
+                </span>
+              </div>
+
+              <button
+                onClick={handleCopy}
+                className="bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl border border-slate-200 shadow-xs flex items-center gap-1.5 transition-colors"
+              >
+                {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-400" />}
+                <span>{copied ? 'Copied!' : 'Copy Token'}</span>
+              </button>
+            </div>
+
+            {/* QR Code Graphic with Foodie Logo Center */}
+            <div className="flex flex-col items-center justify-center py-2">
+              <div className="p-5 bg-white rounded-3xl border-2 border-dashed border-emerald-300 shadow-inner relative inline-block">
+                
+                {/* Simulated high-fidelity QR */}
+                <div className="w-48 h-48 sm:w-56 sm:h-56 bg-white relative flex items-center justify-center">
+                  <svg className="w-full h-full" viewBox="0 0 100 100" fill="none">
+                    {/* QR Code pattern */}
+                    <rect x="5" y="5" width="28" height="28" rx="4" fill="#0f172a" />
+                    <rect x="9" y="9" width="20" height="20" rx="2" fill="white" />
+                    <rect x="13" y="13" width="12" height="12" rx="1" fill="#047857" />
+
+                    <rect x="67" y="5" width="28" height="28" rx="4" fill="#0f172a" />
+                    <rect x="71" y="9" width="20" height="20" rx="2" fill="white" />
+                    <rect x="75" y="13" width="12" height="12" rx="1" fill="#047857" />
+
+                    <rect x="5" y="67" width="28" height="28" rx="4" fill="#0f172a" />
+                    <rect x="9" y="71" width="20" height="20" rx="2" fill="white" />
+                    <rect x="13" y="75" width="12" height="12" rx="1" fill="#047857" />
+
+                    {/* Data modules */}
+                    <rect x="38" y="10" width="8" height="8" fill="#0f172a" />
+                    <rect x="50" y="10" width="8" height="8" fill="#0f172a" />
+                    <rect x="38" y="24" width="6" height="6" fill="#0f172a" />
+                    <rect x="48" y="22" width="10" height="6" fill="#0f172a" />
+                    
+                    <rect x="10" y="38" width="8" height="8" fill="#0f172a" />
+                    <rect x="22" y="44" width="6" height="8" fill="#0f172a" />
+                    <rect x="12" y="52" width="8" height="6" fill="#0f172a" />
+                    
+                    <rect x="38" y="40" width="24" height="24" rx="6" fill="#047857" />
+                    <path d="M50 44a6 6 0 0 0-6 6v1h12v-1a6 6 0 0 0-6-6zm-1-1h2v1h-2v-1zm-6 9h14v1H43v-1zm2 2h10v1H45v-1z" fill="white" />
+
+                    <rect x="68" y="40" width="8" height="8" fill="#0f172a" />
+                    <rect x="80" y="44" width="10" height="6" fill="#0f172a" />
+                    <rect x="70" y="54" width="6" height="6" fill="#0f172a" />
+                    <rect x="82" y="54" width="8" height="8" fill="#0f172a" />
+
+                    <rect x="38" y="68" width="8" height="8" fill="#0f172a" />
+                    <rect x="50" y="72" width="6" height="8" fill="#0f172a" />
+                    <rect x="60" y="68" width="8" height="6" fill="#0f172a" />
+                    <rect x="40" y="80" width="12" height="6" fill="#0f172a" />
+                    <rect x="56" y="82" width="8" height="8" fill="#0f172a" />
+                    <rect x="70" y="78" width="10" height="6" fill="#0f172a" />
+                    <rect x="84" y="70" width="6" height="16" fill="#0f172a" />
+                  </svg>
+                </div>
+              </div>
+
+              <h4 className="font-extrabold text-sm text-slate-900 mt-3">Scan at Takeaway Counter</h4>
+              <p className="text-xs text-slate-500 max-w-xs">
+                Show this QR code to the restaurant staff when collecting your food.
+              </p>
+            </div>
+
+            {/* Dotted separator */}
+            <div className="relative border-t-2 border-dashed border-slate-200 my-2">
+              <div className="absolute -left-10 -top-3 w-6 h-6 bg-[#fafcfb] rounded-full" />
+              <div className="absolute -right-10 -top-3 w-6 h-6 bg-[#fafcfb] rounded-full" />
+            </div>
+
+            {/* Countdown Box */}
+            <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 text-center space-y-1">
+              <div className="flex items-center justify-center gap-2 text-xs font-bold text-amber-900">
+                <Clock className="w-4 h-4 text-amber-600 animate-spin" />
+                <span>Pickup token expires in</span>
+                <span className="bg-white px-2.5 py-1 rounded-md text-amber-900 font-mono font-extrabold text-sm shadow-xs border border-amber-200">
+                  0{timeLeft.hours}h {timeLeft.minutes < 10 ? `0${timeLeft.minutes}` : timeLeft.minutes}m {timeLeft.seconds < 10 ? `0${timeLeft.seconds}` : timeLeft.seconds}s
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-800/80">
+                ⚠️ Please collect your order before the <strong>8:00 PM</strong> cutoff deadline. Unclaimed meals cannot be held after restaurant closing.
+              </p>
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* Order Summary Card */}
+        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <h3 className="font-extrabold text-base text-slate-900">Order Summary</h3>
+            <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
+              {booking.portions}x Items Reserved
+            </span>
+          </div>
+
+          <div className="flex items-center gap-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+            <img src={booking.image} alt={booking.mealTitle} className="w-16 h-16 rounded-xl object-cover" />
+            <div>
+              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                ● Veg Thali Combo
+              </span>
+              <h4 className="font-bold text-sm text-slate-900 mt-1">{booking.mealTitle}</h4>
+              <p className="text-xs text-slate-500 leading-tight">{booking.subTitle}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Restaurant</span>
+              <span className="font-bold text-xs text-slate-900 block mt-0.5">{booking.restaurantName}</span>
+            </div>
+
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Paid</span>
+              <span className="font-extrabold text-sm text-emerald-700 block mt-0.5">
+                ₹{booking.totalPaid} <span className="text-[11px] font-normal text-slate-500">• Paid via UPI • Eco Packaging Inc.</span>
+              </span>
+            </div>
+
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Booking Date</span>
+              <span className="font-medium text-xs text-slate-700 block mt-0.5">{booking.bookingDate}</span>
+            </div>
+
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Pickup Time Window</span>
+              <span className="font-bold text-xs text-amber-800 block mt-0.5">{booking.pickupWindow}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Pickup Location Card */}
+        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-emerald-700" />
+              Pickup Location
+            </h3>
+            <span className="text-xs text-slate-500">Navigate to dedicated Foodie counter</span>
+          </div>
+
+          {/* Map Preview Simulation */}
+          <div className="relative rounded-2xl overflow-hidden aspect-21/9 bg-slate-200 border border-slate-300">
+            <img
+              src="https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1000&q=80"
+              alt="Map Preview"
+              className="w-full h-full object-cover filter saturate-150 contrast-75 brightness-105"
+            />
+            <div className="absolute inset-0 bg-emerald-950/20" />
+            
+            {/* Center Pin */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+              <div className="w-10 h-10 rounded-full bg-emerald-700 text-white flex items-center justify-center shadow-xl ring-4 ring-white animate-bounce">
+                <MapPin className="w-5 h-5 fill-white" />
+              </div>
+              <span className="bg-slate-900 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow mt-1 whitespace-nowrap">
+                Sharma Restaurant (Counter 2)
+              </span>
+            </div>
+
+            {/* Distance badge */}
+            <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-md px-3 py-1 rounded-xl text-xs font-bold text-slate-800 shadow-sm flex items-center gap-1.5">
+              <Navigation className="w-3.5 h-3.5 text-emerald-700" />
+              <span>{booking.distance}</span>
+            </div>
+          </div>
+
+          {/* Address details */}
+          <div className="space-y-1">
+            <h4 className="font-extrabold text-sm text-slate-900">{booking.restaurantName}</h4>
+            <p className="text-xs text-slate-600">{booking.restaurantAddress}</p>
+            <div className="inline-block bg-emerald-50 text-emerald-800 text-xs font-semibold px-2.5 py-1 rounded-lg border border-emerald-200 mt-1">
+              📍 {booking.pickupCounter}
+            </div>
+          </div>
+
+          {/* Location Actions */}
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <button
+              onClick={() => alert(`Opening Google Maps navigation to: ${booking.restaurantAddress}`)}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
+            >
+              <Navigation className="w-3.5 h-3.5" />
+              Get Directions
+            </button>
+
+            <button
+              onClick={() => alert('Calling Restaurant Desk: +91 98260 12345')}
+              className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs transition-colors flex items-center gap-1.5"
+            >
+              <Phone className="w-3.5 h-3.5 text-slate-500" />
+              Contact (+91 98260 12345)
+            </button>
+
+            <button
+              onClick={() => setShowCancelConfirm(true)}
+              className="text-rose-600 hover:text-rose-700 font-semibold text-xs ml-auto hover:underline"
+            >
+              Cancel Booking
+            </button>
+          </div>
+        </div>
+
+        {/* Automatic Pickup Verification Notice */}
+        <div className="bg-emerald-50/70 border border-emerald-200 rounded-3xl p-5 flex items-start gap-3.5 text-xs text-slate-700">
+          <ShieldCheck className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <h5 className="font-bold text-slate-900 text-xs">Automatic Pickup Verification</h5>
+            <p className="text-slate-600 text-xs leading-relaxed">
+              After successful pickup, the restaurant will scan this token and this booking will automatically move to your completed history. Thank you for rescuing good food!
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Cancel Confirmation Modal */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-slate-100">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div className="text-center space-y-1">
+              <h3 className="font-extrabold text-lg text-slate-900">Cancel Booking?</h3>
+              <p className="text-xs text-slate-500">
+                Are you sure you want to cancel booking #{booking.id}? Your payment of ₹{booking.totalPaid} will be refunded to your original UPI account.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                className="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs"
+              >
+                Keep Booking
+              </button>
+              <button
+                onClick={handleCancelOrder}
+                className="w-1/2 bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-xl text-xs"
+              >
+                Yes, Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

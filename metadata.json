@@ -1,0 +1,6 @@
+{
+  "name": "Foodie - Surplus Food Rescue Platform",
+  "description": "Connect with local hotels & restaurants to rescue fresh surplus food at up to 70% off while reducing waste.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
