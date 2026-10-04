@@ -12,12 +12,12 @@ export default function HomePage() {
   const [activeCategory, setActiveCategory] = useState('All');
 
   const categories = [
-    { name: 'All', count: 140, icon: '🍽️' },
-    { name: 'Meals & Thalis', count: 48, icon: '🍲' },
-    { name: 'Biryani & Rice', count: 19, icon: '🍚' },
-    { name: 'Bakery & Breads', count: 24, icon: '🥐' },
-    { name: 'Bowls & Curries', count: 15, icon: '🥗' },
-    { name: 'Snacks & Starters', count: 12, icon: '🥪' }
+    { name: 'All Surplus', count: meals?.length || 11, icon: '🍽️', id: 'All' },
+    { name: 'Bakery', count: 4, icon: '🥐', id: 'Bakery' },
+    { name: 'Restaurant Meals', count: 5, icon: '🍲', id: 'Restaurant' },
+    { name: 'Grocery & Produce', count: 3, icon: '🥦', id: 'Grocery' },
+    { name: 'Cafe & Snacks', count: 2, icon: '🥪', id: 'Snacks' },
+    { name: 'Sweets & Desserts', count: 2, icon: '🍰', id: 'Desserts' }
   ];
 
   const featuredMeals = (mealsWithDistance || meals).slice(0, 4);

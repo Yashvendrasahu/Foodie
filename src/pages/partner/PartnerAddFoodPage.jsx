@@ -1,15 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import PartnerLayout from './PartnerLayout.jsx';
 import { useApp } from '../../context/AppContext.jsx';
 import OpenStreetMap from '../../components/OpenStreetMap.jsx';
 import {
   PlusCircle, Upload, CheckCircle2, Clock, ShieldCheck, Leaf,
-  Sparkles, Camera, ArrowLeft, Eye, Smartphone, AlertCircle, MapPin
+  Sparkles, Camera, ArrowLeft, Eye, Smartphone, AlertCircle, MapPin,
+  Image as ImageIcon, RefreshCw, Trash2, Check, FileUp
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
+const PRESET_FOOD_PHOTOS = [
+  { name: 'North Indian Deluxe Thali', url: 'https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?auto=format&fit=crop&w=800&q=80', tag: 'Thalis' },
+  { name: 'Dum Handi Biryani Box', url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=800&q=80', tag: 'Biryani' },
+  { name: 'Artisan Bakery Surprise Basket', url: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=800&q=80', tag: 'Bakery' },
+  { name: 'South Indian Tiffin Feast', url: 'https://images.unsplash.com/photo-1610192244261-3f33de3f55e4?auto=format&fit=crop&w=800&q=80', tag: 'South Indian' },
+  { name: 'Festive Mithai & Sweets Box', url: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=800&q=80', tag: 'Desserts' },
+  { name: 'Paneer Makhani & Jeera Rice', url: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=800&q=80', tag: 'Curries' }
+];
+
 export default function PartnerAddFoodPage() {
   const { addNewSurplusListing, navigate, showToast } = useApp();
+
+  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   // Form states matching screenshot 5
   const [foodName, setFoodName] = useState('Fresh Deluxe Veg Thali');
@@ -30,7 +43,87 @@ export default function PartnerAddFoodPage() {
   const [restaurantAddress, setRestaurantAddress] = useState('Plot 42, University Commercial Complex, Sector 4, MG Road, Indore');
   const [kitchenCoords, setKitchenCoords] = useState({ lat: 22.7245, lng: 75.8640 });
   const [safetyCertified, setSafetyCertified] = useState(true);
+  
+  // Real Photo Upload States
   const [photoUrl, setPhotoUrl] = useState('https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?auto=format&fit=crop&w=800&q=80');
+  const [uploadedFileName, setUploadedFileName] = useState('thali_lunch_surplus_batch4.jpg');
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [photoTab, setPhotoTab] = useState('upload'); // 'upload' | 'presets' | 'url'
+  const [customUrlInput, setCustomUrlInput] = useState('');
+
+  // Compress and read image file to high-efficiency data URL
+  const processImageFile = (file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('Please select a valid image file (JPG, PNG, WebP).', 'error');
+      return;
+    }
+    if (file.size > 12 * 1024 * 1024) {
+      showToast('Image file is too large (> 12MB). Please pick a smaller photo.', 'error');
+      return;
+    }
+
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 1200;
+        let width = img.width;
+        let height = img.height;
+        if (width > height && width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.86);
+
+        setPhotoUrl(compressedDataUrl);
+        setUploadedFileName(file.name || 'custom_food_photo.jpg');
+        setIsUploading(false);
+        showToast(`📸 Photo "${file.name}" uploaded and optimized!`, 'success');
+      };
+      img.onerror = () => {
+        setIsUploading(false);
+        showToast('Failed to process image file.', 'error');
+      };
+      img.src = event.target.result;
+    };
+    reader.onerror = () => {
+      setIsUploading(false);
+      showToast('Failed to read image file.', 'error');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleFileInputChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) processImageFile(file);
+    e.target.value = '';
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processImageFile(file);
+  };
+
+  const handleCustomUrlApply = (e) => {
+    e.preventDefault();
+    if (!customUrlInput.trim()) return;
+    setPhotoUrl(customUrlInput.trim());
+    setUploadedFileName('external_image_url.jpg');
+    showToast('Photo URL updated!', 'success');
+  };
 
   const discountPercent = Math.round(((retailPrice - rescuePrice) / retailPrice) * 100) || 51;
   const estimatedRevenue = rescuePrice * portions;
@@ -208,54 +301,230 @@ export default function PartnerAddFoodPage() {
               </div>
             </div>
 
-            {/* Step 2: Surplus Item Photography */}
+            {/* Step 2: Surplus Item Photography (Real Upload & Camera) */}
             <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2.5">
                   <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center">
                     2
                   </span>
-                  <h3 className="font-extrabold text-base text-slate-900">Surplus Item Photography</h3>
+                  <div>
+                    <h3 className="font-extrabold text-base text-slate-900">Surplus Item Photography</h3>
+                    <p className="text-[11px] text-slate-500">Upload live kitchen photo or select high-resolution menu shot</p>
+                  </div>
                 </div>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  ⚡ 3.5x higher bookings
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full flex items-center gap-1 border border-emerald-200">
+                  ⚡ 3.5x Higher Bookings
                 </span>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-4">
-                <div className="relative w-28 h-28 rounded-2xl overflow-hidden border border-slate-200 shrink-0">
-                  <img src={photoUrl} alt="Preview" className="w-full h-full object-cover" />
-                  <span className="absolute top-1 left-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.2 rounded">
-                    Current
-                  </span>
-                </div>
+              {/* Hidden Real Inputs */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png, image/jpeg, image/jpg, image/webp"
+                onChange={handleFileInputChange}
+                className="hidden"
+              />
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileInputChange}
+                className="hidden"
+              />
 
-                <div className="space-y-1 text-xs">
-                  <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                    <span>thali_lunch_surplus_batch4.jpg</span>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              {/* Photo Source Tabs */}
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl w-full max-w-md text-xs font-bold border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setPhotoTab('upload')}
+                  className={`flex-1 py-1.5 px-3 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    photoTab === 'upload' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <FileUp className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Upload & Camera</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPhotoTab('presets')}
+                  className={`flex-1 py-1.5 px-3 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    photoTab === 'presets' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Food Presets</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPhotoTab('url')}
+                  className={`flex-1 py-1.5 px-3 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    photoTab === 'url' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <ImageIcon className="w-3.5 h-3.5 text-blue-500" />
+                  <span>Web Link</span>
+                </button>
+              </div>
+
+              {/* TAB 1: Real File Upload & Live Camera */}
+              {photoTab === 'upload' && (
+                <div className="space-y-4">
+                  {/* Dropzone */}
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                    className={`relative p-6 rounded-2xl border-2 border-dashed transition flex flex-col items-center justify-center text-center cursor-pointer ${
+                      isDragging
+                        ? 'border-emerald-500 bg-emerald-50/70 scale-[0.99]'
+                        : 'border-slate-300 hover:border-emerald-400 bg-slate-50/60 hover:bg-emerald-50/30'
+                    }`}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-2 shadow-xs">
+                      {isUploading ? (
+                        <RefreshCw className="w-6 h-6 animate-spin text-emerald-600" />
+                      ) : (
+                        <Upload className="w-6 h-6 text-emerald-700" />
+                      )}
+                    </div>
+                    <p className="font-extrabold text-xs text-slate-900">
+                      {isUploading ? 'Compressing and optimizing food photo...' : 'Click to Browse Food Photo or Drag & Drop Here'}
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Supports JPG, PNG, WEBP up to 10MB • Auto-optimized for instant mobile load
+                    </p>
+
+                    <div className="flex items-center gap-2 mt-4" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <FileUp className="w-3.5 h-3.5" />
+                        <span>Choose File</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="px-4 py-2 bg-slate-900 hover:bg-black text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Take Live Camera Photo</span>
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-slate-500 text-[11px]">1.8 MB • High Resolution • Color Balanced</p>
-                  
-                  <div className="flex items-center gap-3 pt-2">
+
+                  {/* Current Active Preview Bar */}
+                  <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-slate-200 shrink-0 shadow-inner">
+                        <img src={photoUrl} alt="Active Preview" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                          <span className="truncate max-w-[200px]">{uploadedFileName}</span>
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        </div>
+                        <p className="text-slate-500 text-[11px]">Ready for Discovery Feed • High-Res Display</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
+                      >
+                        Replace
+                      </button>
+                      <span className="text-slate-300">•</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPhotoUrl(PRESET_FOOD_PHOTOS[0].url);
+                          setUploadedFileName('default_thali.jpg');
+                          showToast('Reset to default food photo', 'info');
+                        }}
+                        className="text-xs font-bold text-slate-500 hover:text-rose-600 cursor-pointer"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: Curated Indian Food Presets */}
+              {photoTab === 'presets' && (
+                <div className="space-y-2">
+                  <div className="text-[11px] font-medium text-slate-500">
+                    Select a chef-grade photo matching your kitchen's surplus batch:
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {PRESET_FOOD_PHOTOS.map((p) => {
+                      const isSelected = photoUrl === p.url;
+                      return (
+                        <div
+                          key={p.name}
+                          onClick={() => {
+                            setPhotoUrl(p.url);
+                            setUploadedFileName(`${p.name}.jpg`);
+                            showToast(`Selected "${p.name}" photo`, 'success');
+                          }}
+                          className={`group relative rounded-2xl overflow-hidden border-2 cursor-pointer transition ${
+                            isSelected
+                              ? 'border-emerald-600 ring-2 ring-emerald-500/20 shadow-md'
+                              : 'border-slate-200 hover:border-emerald-400'
+                          }`}
+                        >
+                          <div className="aspect-4/3 overflow-hidden bg-slate-100">
+                            <img src={p.url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                          </div>
+                          <div className="p-2 bg-white text-left">
+                            <span className="text-[9px] font-bold uppercase text-emerald-700 block">{p.tag}</span>
+                            <span className="text-[11px] font-extrabold text-slate-900 block truncate">{p.name}</span>
+                          </div>
+                          {isSelected && (
+                            <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow">
+                              <Check className="w-3.5 h-3.5" />
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: Direct Web Image Link */}
+              {photoTab === 'url' && (
+                <div className="space-y-3">
+                  <div className="text-[11px] font-medium text-slate-500">
+                    Paste an image URL hosted on Unsplash, Cloudinary, or your website:
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      placeholder="https://images.unsplash.com/photo-..."
+                      value={customUrlInput}
+                      onChange={(e) => setCustomUrlInput(e.target.value)}
+                      className="flex-1 p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-600"
+                    />
                     <button
                       type="button"
-                      onClick={() => showToast('Surplus batch photo updated with fresh kitchen shot.', 'success')}
-                      className="text-emerald-700 font-bold hover:underline cursor-pointer"
+                      onClick={handleCustomUrlApply}
+                      className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl transition cursor-pointer"
                     >
-                      Change Photo
-                    </button>
-                    <span className="text-slate-300">•</span>
-                    <button
-                      type="button"
-                      onClick={() => setPhotoUrl('https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=800&q=80')}
-                      className="text-rose-600 font-bold hover:underline"
-                    >
-                      Use Alternate Photo
+                      Apply
                     </button>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Step 3: Quantity & Pricing */}

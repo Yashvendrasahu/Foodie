@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import PartnerLayout from './PartnerLayout.jsx';
 import { useApp } from '../../context/AppContext.jsx';
+import RealQRScannerModal from '../../components/RealQRScannerModal.jsx';
+import RealQRCode from '../../components/RealQRCode.jsx';
 import {
   ArrowLeft, CheckCircle2, Clock, Phone, MapPin, QrCode,
-  ShieldCheck, AlertCircle, Printer, Camera, Check, XCircle
+  ShieldCheck, AlertCircle, Printer, Camera, Check, XCircle, User
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function PartnerBookingDetailPage() {
   const { selectedBookingId, bookings, markBookingHandedOver, markBookingReady, cancelBooking, navigate, showToast } = useApp();
+  const [showScannerModal, setShowScannerModal] = useState(false);
 
   const booking = bookings.find((b) => b.id === selectedBookingId) || bookings[0];
 
@@ -294,15 +297,16 @@ export default function PartnerBookingDetailPage() {
                 </span>
               </div>
 
-              {/* QR Scanner simulator */}
-              <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-300 space-y-3">
-                <QrCode className="w-16 h-16 text-slate-700 mx-auto" />
+              {/* Real QR Voucher Pass & Camera Scanner Trigger */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-emerald-300 space-y-3 flex flex-col items-center">
+                <RealQRCode booking={booking} size={140} showActions={false} />
                 <button
-                  onClick={() => handleHandover()}
-                  className="w-full bg-slate-900 hover:bg-black text-white text-xs font-bold py-2.5 px-3 rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                  type="button"
+                  onClick={() => setShowScannerModal(true)}
+                  className="w-full bg-slate-900 hover:bg-black text-white text-xs font-bold py-2.5 px-3 rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
                 >
-                  <Camera className="w-3.5 h-3.5" />
-                  Scan Diner QR with Webcam
+                  <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Open Real Camera to Scan Voucher</span>
                 </button>
               </div>
 
@@ -359,6 +363,13 @@ export default function PartnerBookingDetailPage() {
           </div>
 
         </div>
+
+        {/* Real Camera QR Scanner Modal */}
+        <RealQRScannerModal
+          isOpen={showScannerModal}
+          onClose={() => setShowScannerModal(false)}
+          targetBookingId={booking?.id}
+        />
 
       </div>
     </PartnerLayout>

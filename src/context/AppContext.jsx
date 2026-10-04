@@ -20,6 +20,7 @@ import {
   dbGetMeals,
   dbInsertMeal,
   dbUpdateMeal,
+  dbDeleteMeal,
   dbGetBookings,
   dbCreateBooking,
   dbUpdateBookingStatus,
@@ -252,12 +253,53 @@ export function AppProvider({ children }) {
     localStorage.setItem('foodie_settings', JSON.stringify(platformSettings));
   }, [platformSettings]);
 
+  // Supabase real-time sync states
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncedTime, setLastSyncedTime] = useState(null);
+
+  // Function to refresh and fetch every real value directly from Supabase
+  const refreshFromSupabase = async (notify = false) => {
+    if (!isSupabaseConfigured) {
+      if (notify) showToast('Supabase is not connected yet. Showing local live data.', 'info');
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const [remoteMeals, remoteBookings, remoteHotels, remoteUsers, remoteTickets] = await Promise.all([
+        dbGetMeals(meals),
+        dbGetBookings(bookings),
+        dbGetHotelVerifications(hotelVerifications),
+        dbGetUsers(users),
+        dbGetSupportTickets(supportTickets)
+      ]);
+
+      if (remoteMeals && remoteMeals.length > 0) setMeals(remoteMeals);
+      if (remoteBookings && remoteBookings.length > 0) setBookings(remoteBookings);
+      if (remoteHotels && remoteHotels.length > 0) setHotelVerifications(remoteHotels);
+      if (remoteUsers && remoteUsers.length > 0) setUsers(remoteUsers);
+      if (remoteTickets && remoteTickets.length > 0) setSupportTickets(remoteTickets);
+
+      const now = new Date();
+      setLastSyncedTime(now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      if (notify) {
+        showToast('⚡ Live data refreshed from Supabase PostgreSQL successfully!', 'success');
+      }
+    } catch (err) {
+      console.warn('Supabase fetch error:', err);
+      if (notify) showToast('Failed to fetch from Supabase. Check connection.', 'error');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   // Load and subscribe to Supabase when configured
   useEffect(() => {
     if (!isSupabaseConfigured) return;
 
     let isMounted = true;
     async function loadFromSupabase() {
+      setIsSyncing(true);
       try {
         const [remoteMeals, remoteBookings, remoteHotels, remoteUsers, remoteTickets] = await Promise.all([
           dbGetMeals(meals),
@@ -273,15 +315,18 @@ export function AppProvider({ children }) {
           if (remoteHotels && remoteHotels.length > 0) setHotelVerifications(remoteHotels);
           if (remoteUsers && remoteUsers.length > 0) setUsers(remoteUsers);
           if (remoteTickets && remoteTickets.length > 0) setSupportTickets(remoteTickets);
+          setLastSyncedTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }));
         }
       } catch (err) {
         console.warn('Initial Supabase load error:', err);
+      } finally {
+        if (isMounted) setIsSyncing(false);
       }
     }
 
     loadFromSupabase();
 
-    // Setup live real-time synchronization
+    // Setup live real-time synchronization across all tables
     const unsubBookings = subscribeToTable(
       'bookings',
       (newBooking) => {
@@ -308,10 +353,52 @@ export function AppProvider({ children }) {
       }
     );
 
+    const unsubHotels = subscribeToTable(
+      'hotel_verifications',
+      (newHotel) => {
+        setHotelVerifications(prev => {
+          if (prev.some(h => h.id === newHotel.id)) return prev;
+          return [newHotel, ...prev];
+        });
+      },
+      (updatedHotel) => {
+        setHotelVerifications(prev => prev.map(h => h.id === updatedHotel.id ? { ...h, ...updatedHotel } : h));
+      }
+    );
+
+    const unsubTickets = subscribeToTable(
+      'support_tickets',
+      (newTicket) => {
+        setSupportTickets(prev => {
+          if (prev.some(t => t.id === newTicket.id)) return prev;
+          return [newTicket, ...prev];
+        });
+      },
+      (updatedTicket) => {
+        setSupportTickets(prev => prev.map(t => t.id === updatedTicket.id ? { ...t, ...updatedTicket } : t));
+      }
+    );
+
+    const unsubUsers = subscribeToTable(
+      'users',
+      (newUser) => {
+        setUsers(prev => {
+          if (prev.some(u => u.id === newUser.id || u.email === newUser.email)) return prev;
+          return [newUser, ...prev];
+        });
+      },
+      (updatedUser) => {
+        setUsers(prev => prev.map(u => (u.id === updatedUser.id || u.email === updatedUser.email) ? { ...u, ...updatedUser } : u));
+      }
+    );
+
     return () => {
       isMounted = false;
       unsubBookings();
       unsubMeals();
+      unsubHotels();
+      unsubTickets();
+      unsubUsers();
     };
   }, []);
 
@@ -686,7 +773,8 @@ export function AppProvider({ children }) {
 
   const deleteMeal = (mealId) => {
     setMeals(prev => prev.filter(m => m.id !== mealId));
-    showToast('Meal removed from inventory ledger.', 'warning');
+    dbDeleteMeal(mealId).catch(err => console.warn('Supabase delete meal error:', err));
+    showToast('Meal removed from inventory ledger and database.', 'warning');
   };
 
   const updateHotelVerification = (hotelId, status) => {
@@ -717,6 +805,9 @@ export function AppProvider({ children }) {
   const value = {
     isSupabaseConfigured,
     supabase,
+    isSyncing,
+    lastSyncedTime,
+    refreshFromSupabase,
     authUser,
     isLoggedIn,
     performLogin,

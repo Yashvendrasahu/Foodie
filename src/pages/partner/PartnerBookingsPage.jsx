@@ -1,18 +1,30 @@
 import React, { useState } from 'react';
 import PartnerLayout from './PartnerLayout.jsx';
 import { useApp } from '../../context/AppContext.jsx';
+import RealQRScannerModal from '../../components/RealQRScannerModal.jsx';
 import {
   QrCode, Search, CheckCircle2, Clock, Printer, Download,
-  Camera, ArrowRight, AlertCircle, Phone, User, Check, Eye
+  Camera, ArrowRight, AlertCircle, Phone, User, Check, Eye,
+  Sparkles, RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function PartnerBookingsPage() {
-  const { bookings, markBookingHandedOver, markBookingReady, expireBooking, navigate, showToast } = useApp();
+  const {
+    bookings,
+    markBookingHandedOver,
+    markBookingReady,
+    expireBooking,
+    navigate,
+    showToast,
+    refreshFromSupabase,
+    isSyncing,
+    lastSyncedTime
+  } = useApp();
   const [tokenInput, setTokenInput] = useState('FD-4827');
   const [verifiedToken, setVerifiedToken] = useState(null);
   const [activeTab, setActiveTab] = useState('All');
-  const [isScanning, setIsScanning] = useState(false);
+  const [showScannerModal, setShowScannerModal] = useState(false);
 
   const handleVerify = (codeToVerify) => {
     const code = (codeToVerify || tokenInput).trim().toUpperCase();
@@ -66,6 +78,16 @@ export default function PartnerBookingsPage() {
 
           <div className="flex items-center gap-2.5">
             <button
+              onClick={() => refreshFromSupabase(true)}
+              disabled={isSyncing}
+              className="bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 text-xs font-bold px-3.5 py-2 rounded-xl border border-slate-200 shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+              title="Refresh live orders from Supabase PostgreSQL"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-emerald-600' : ''}`} />
+              <span>{isSyncing ? 'Syncing...' : 'Sync Supabase'}</span>
+              {lastSyncedTime && <span className="text-[10px] text-slate-400 font-normal">({lastSyncedTime})</span>}
+            </button>
+            <button
               onClick={() => showToast('Exporting pickup roster (CSV)...', 'info')}
               className="bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl border border-slate-200 shadow-xs flex items-center gap-1.5"
             >
@@ -103,31 +125,47 @@ export default function PartnerBookingsPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
-            {/* Left: Camera Scanner Simulator */}
-            <div className="lg:col-span-5 bg-slate-900 rounded-2xl p-5 text-white relative flex flex-col items-center justify-center aspect-4/3 overflow-hidden group">
-              <div className="absolute top-3 left-3 bg-red-600/90 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE 1080P
+            {/* Left: Real Camera QR Scanner Box */}
+            <div className="lg:col-span-5 bg-slate-900 rounded-3xl p-5 text-white relative flex flex-col items-center justify-center aspect-4/3 overflow-hidden group shadow-lg border border-slate-700">
+              <div className="absolute top-3 left-3 bg-red-600/90 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                <span>REALTIME WEBCAM SCANNER</span>
               </div>
 
               {/* Viewfinder Target */}
-              <div className="w-40 h-40 border-2 border-emerald-400 rounded-2xl relative flex items-center justify-center p-3">
-                <div className="w-full h-full border border-dashed border-emerald-300/60 rounded-xl flex items-center justify-center">
-                  <QrCode className="w-12 h-12 text-emerald-400 opacity-80" />
+              <div
+                onClick={() => setShowScannerModal(true)}
+                className="w-44 h-44 border-2 border-emerald-400 rounded-3xl relative flex flex-col items-center justify-center p-3 cursor-pointer hover:border-emerald-300 hover:scale-102 transition shadow-inner bg-slate-950/60"
+              >
+                <div className="w-full h-full border border-dashed border-emerald-300/50 rounded-2xl flex flex-col items-center justify-center gap-2">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <Camera className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <span className="text-[11px] font-extrabold text-emerald-300">Tap to Open Webcam</span>
                 </div>
                 {/* Laser scan line */}
-                <div className="absolute top-0 left-0 right-0 h-0.5 bg-emerald-400 shadow-[0_0_12px_#34d399] animate-bounce" />
+                <div className="absolute top-2 left-3 right-3 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#34d399] animate-bounce" />
               </div>
 
-              <p className="text-[11px] text-slate-400 mt-3 text-center">
-                Align Diner QR within frame to auto-verify
-              </p>
+              <div className="w-full mt-3 flex flex-col sm:flex-row items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowScannerModal(true)}
+                  className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Open Real Camera Scanner</span>
+                </button>
 
-              <button
-                onClick={() => handleVerify('FD-4827')}
-                className="mt-2 bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] font-bold px-3 py-1 rounded-lg transition-colors"
-              >
-                Simulate Camera Scan (FD-4827)
-              </button>
+                <button
+                  type="button"
+                  onClick={() => handleVerify('FD-4827')}
+                  className="w-full sm:w-auto px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition cursor-pointer"
+                  title="Test verification with sample token"
+                >
+                  Quick Test Token (FD-4827)
+                </button>
+              </div>
             </div>
 
             {/* Right: Manual Token Lookup & Verification Card */}
@@ -452,6 +490,15 @@ export default function PartnerBookingsPage() {
             </button>
           </div>
         </div>
+
+        {/* Real Live Camera QR Scanner Modal */}
+        <RealQRScannerModal
+          isOpen={showScannerModal}
+          onClose={() => setShowScannerModal(false)}
+          onSuccessHandover={(booking) => {
+            setVerifiedToken(booking);
+          }}
+        />
 
       </div>
     </PartnerLayout>

@@ -378,6 +378,18 @@ export async function dbUpdateMeal(id, updates) {
   }
 }
 
+export async function dbDeleteMeal(id) {
+  if (!isSupabaseConfigured || !supabase) return true;
+  try {
+    const { error } = await supabase.from('meals').delete().eq('id', id);
+    if (error) console.warn('dbDeleteMeal error:', error.message);
+    return !error;
+  } catch (err) {
+    console.warn('dbDeleteMeal error:', err);
+    return false;
+  }
+}
+
 // ==========================================
 // 4. BOOKINGS DATABASE OPERATIONS
 // ==========================================

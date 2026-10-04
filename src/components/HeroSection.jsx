@@ -12,12 +12,12 @@ export default function HeroSection() {
   const [selectedQuickTag, setSelectedQuickTag] = useState('All');
 
   const quickTags = [
-    { label: 'All Surplus', icon: '✨' },
-    { label: 'Pure Veg', icon: '🌱' },
-    { label: 'Thalis & Meals', icon: '🍲' },
-    { label: 'Biryani & Rice', icon: '🍚' },
-    { label: 'Bakery & Sweets', icon: '🥐' },
-    { label: 'Under ₹99', icon: '🏷️' }
+    { label: 'All Surplus', icon: '✨', query: '' },
+    { label: 'Bakery', icon: '🥐', query: 'Bakery' },
+    { label: 'Restaurant', icon: '🍲', query: 'Restaurant' },
+    { label: 'Grocery', icon: '🥦', query: 'Grocery' },
+    { label: 'Biryani', icon: '🍚', query: 'Biryani' },
+    { label: 'Pure Veg', icon: '🌱', query: 'Veg' }
   ];
 
   const handleSearchSubmit = (e) => {

@@ -17,7 +17,11 @@ export default function ExploreFoodPage() {
     setUserCity,
     navigate,
     setSelectedMealId,
-    showToast
+    showToast,
+    isSupabaseConfigured,
+    isSyncing,
+    refreshFromSupabase,
+    lastSyncedTime
   } = useApp();
 
   // View Mode: 'grid' | 'map' | 'split'
@@ -48,17 +52,56 @@ export default function ExploreFoodPage() {
     setSortBy('Distance: Nearest');
   };
 
+  // Category Definitions
+  const CATEGORY_OPTIONS = [
+    { id: 'All', label: 'All Surplus', icon: '🍽️', desc: 'All food categories' },
+    { id: 'Bakery', label: 'Bakery', icon: '🥐', desc: 'Breads, croissants & puffs' },
+    { id: 'Restaurant', label: 'Restaurant', icon: '🍲', desc: 'Thalis, biryanis & curries' },
+    { id: 'Grocery', label: 'Grocery', icon: '🥦', desc: 'Fresh produce & dairy' },
+    { id: 'Snacks', label: 'Cafe & Snacks', icon: '🥪', desc: 'Sandwiches & rolls' },
+    { id: 'Desserts', label: 'Desserts', icon: '🍰', desc: 'Pastries & sweets' }
+  ];
+
+  // Dynamic counts for each category
+  const categoryCounts = useMemo(() => {
+    const counts = { All: (mealsWithDistance || []).length, Bakery: 0, Restaurant: 0, Grocery: 0, Snacks: 0, Desserts: 0 };
+    (mealsWithDistance || []).forEach(m => {
+      const cat = (m.category || '').toLowerCase();
+      const name = (m.name || '').toLowerCase();
+      const rest = (m.restaurant || m.restaurantName || '').toLowerCase();
+
+      if (cat.includes('bakery') || cat.includes('bread') || name.includes('croissant') || name.includes('sourdough') || name.includes('puff') || rest.includes('bakery') || rest.includes('patisserie')) {
+        counts.Bakery = (counts.Bakery || 0) + 1;
+      }
+      if (cat.includes('meal') || cat.includes('thali') || cat.includes('biryani') || cat.includes('bowl') || cat.includes('curry') || rest.includes('restaurant') || rest.includes('hotel') || rest.includes('kitchen')) {
+        counts.Restaurant = (counts.Restaurant || 0) + 1;
+      }
+      if (cat.includes('grocery') || cat.includes('pantry') || name.includes('fruit') || name.includes('basket') || name.includes('dairy') || rest.includes('organic') || rest.includes('market')) {
+        counts.Grocery = (counts.Grocery || 0) + 1;
+      }
+      if (cat.includes('snack') || cat.includes('starter') || name.includes('sandwich') || rest.includes('cafe') || rest.includes('deli')) {
+        counts.Snacks = (counts.Snacks || 0) + 1;
+      }
+      if (cat.includes('dessert') || cat.includes('sweet') || name.includes('sweet') || name.includes('cake') || name.includes('jamun')) {
+        counts.Desserts = (counts.Desserts || 0) + 1;
+      }
+    });
+    return counts;
+  }, [mealsWithDistance]);
+
   // Filter and sort meals
   const filteredMeals = useMemo(() => {
     let result = (mealsWithDistance || []).filter((meal) => {
-      // Search
+      // Search text filter
       if (searchQuery) {
         const q = searchQuery.toLowerCase().trim();
         const matchesName = (meal.name || '').toLowerCase().includes(q);
         const matchesRestaurant = (meal.restaurant || meal.restaurantName || '').toLowerCase().includes(q);
         const matchesDesc = (meal.description || '').toLowerCase().includes(q);
         const matchesCat = (meal.category || '').toLowerCase().includes(q);
-        if (!matchesName && !matchesRestaurant && !matchesDesc && !matchesCat) return false;
+        const matchesAddress = (meal.restaurantAddress || '').toLowerCase().includes(q);
+        const matchesDiet = (meal.dietary || '').toLowerCase().includes(q);
+        if (!matchesName && !matchesRestaurant && !matchesDesc && !matchesCat && !matchesAddress && !matchesDiet) return false;
       }
 
       // Dietary
@@ -68,9 +111,36 @@ export default function ExploreFoodPage() {
         if (selectedDietary === 'Vegan' && meal.dietary !== 'Vegan') return false;
       }
 
-      // Category
-      if (selectedCategory && meal.category !== selectedCategory) {
-        return false;
+      // Category filter (Bakery, Restaurant, Grocery, etc.)
+      if (selectedCategory && selectedCategory !== 'All') {
+        const cat = (meal.category || '').toLowerCase();
+        const name = (meal.name || '').toLowerCase();
+        const rest = (meal.restaurant || meal.restaurantName || '').toLowerCase();
+
+        if (selectedCategory === 'Bakery') {
+          const isBakery = cat.includes('bakery') || cat.includes('bread') || name.includes('croissant') ||
+                           name.includes('sourdough') || name.includes('puff') || rest.includes('bakery') || rest.includes('patisserie');
+          if (!isBakery) return false;
+        } else if (selectedCategory === 'Restaurant') {
+          const isRestaurant = cat.includes('meal') || cat.includes('thali') || cat.includes('biryani') ||
+                               cat.includes('bowl') || cat.includes('curry') || rest.includes('restaurant') || rest.includes('hotel') || rest.includes('kitchen');
+          if (!isRestaurant) return false;
+        } else if (selectedCategory === 'Grocery') {
+          const isGrocery = cat.includes('grocery') || cat.includes('pantry') || name.includes('fruit') ||
+                            name.includes('basket') || name.includes('dairy') || rest.includes('organic') || rest.includes('market');
+          if (!isGrocery) return false;
+        } else if (selectedCategory === 'Snacks') {
+          const isSnacks = cat.includes('snack') || cat.includes('starter') || name.includes('sandwich') ||
+                           name.includes('roll') || rest.includes('cafe') || rest.includes('deli');
+          if (!isSnacks) return false;
+        } else if (selectedCategory === 'Desserts') {
+          const isDessert = cat.includes('dessert') || cat.includes('sweet') || name.includes('sweet') || name.includes('cake');
+          if (!isDessert) return false;
+        } else {
+          if (!cat.includes(selectedCategory.toLowerCase()) && !name.includes(selectedCategory.toLowerCase())) {
+            return false;
+          }
+        }
       }
 
       // Price Range
@@ -150,6 +220,17 @@ export default function ExploreFoodPage() {
                 <span className="text-[11px] text-emerald-700 bg-emerald-100/60 font-medium px-2.5 py-0.5 rounded-full">
                   Real-time OpenStreetMap Verified
                 </span>
+                <button
+                  type="button"
+                  onClick={() => refreshFromSupabase(true)}
+                  disabled={isSyncing}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-200 transition cursor-pointer"
+                  title="Fetch latest meals from Supabase database"
+                >
+                  <RotateCcw className={`w-3 h-3 ${isSyncing ? 'animate-spin text-emerald-600' : ''}`} />
+                  <span>{isSyncing ? 'Fetching Supabase...' : 'Sync Supabase'}</span>
+                  {lastSyncedTime && <span className="text-[9px] text-slate-400 font-normal">({lastSyncedTime})</span>}
+                </button>
               </div>
 
               <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
@@ -179,17 +260,21 @@ export default function ExploreFoodPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-center">
               
               {/* Search text */}
-              <div className="lg:col-span-5 flex items-center gap-2.5 px-3 py-2 bg-white rounded-xl border border-slate-200">
-                <Search className="w-4 h-4 text-slate-400 shrink-0" />
+              <div className="lg:col-span-5 flex items-center gap-2.5 px-3 py-2 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                <Search className="w-4 h-4 text-emerald-600 shrink-0" />
                 <input
                   type="text"
-                  placeholder="Search Thali, Biryani, Bakery Box, Restaurant..."
+                  placeholder="Search Bakery, Restaurant, Grocery, Thali..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-transparent text-xs sm:text-sm text-slate-800 focus:outline-hidden"
+                  className="w-full bg-transparent text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-hidden"
                 />
                 {searchQuery && (
-                  <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-slate-600">
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                    title="Clear search"
+                  >
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -237,6 +322,78 @@ export default function ExploreFoodPage() {
                 </button>
               </div>
 
+            </div>
+
+            {/* Category Filter Pills Strip */}
+            <div className="pt-2 border-t border-slate-200/70 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Browse by Category
+                </span>
+                {selectedCategory && selectedCategory !== 'All' && (
+                  <button
+                    onClick={() => setSelectedCategory('All')}
+                    className="text-[11px] font-bold text-emerald-700 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Clear category</span>
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* Scrollable Category Filter Pills */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                {CATEGORY_OPTIONS.map((cat) => {
+                  const isSelected = selectedCategory === cat.id || (!selectedCategory && cat.id === 'All');
+                  const count = categoryCounts[cat.id] || 0;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat.id === 'All' ? '' : cat.id)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-emerald-700 text-white shadow-sm ring-2 ring-emerald-600/30'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      <span className="text-sm">{cat.icon}</span>
+                      <span>{cat.label}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                        isSelected ? 'bg-emerald-800 text-emerald-100' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Quick Search Suggestions */}
+              <div className="flex items-center gap-1.5 flex-wrap pt-1 text-[11px]">
+                <span className="text-slate-400 font-medium">Quick Search:</span>
+                {[
+                  { label: '🥐 Bakery Box', query: 'Bakery' },
+                  { label: '🍲 Restaurant Thali', query: 'Thali' },
+                  { label: '🥦 Grocery Basket', query: 'Grocery' },
+                  { label: '🍚 Biryani', query: 'Biryani' },
+                  { label: '🌱 Pure Veg', query: 'Veg' },
+                  { label: '🧀 Dairy Pack', query: 'Dairy' }
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => setSearchQuery(item.query)}
+                    className={`px-2 py-0.5 rounded-lg border transition cursor-pointer ${
+                      searchQuery.toLowerCase().includes(item.query.toLowerCase())
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-800 font-bold'
+                        : 'bg-white/80 hover:bg-white border-slate-200 text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Quick Filter & Location Status Strip */}
@@ -381,6 +538,51 @@ export default function ExploreFoodPage() {
                 </button>
               </div>
 
+              {/* CATEGORY FILTER (Bakery, Restaurant, Grocery, etc.) */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
+                    Food Category
+                  </label>
+                  {selectedCategory && (
+                    <button
+                      onClick={() => setSelectedCategory('')}
+                      className="text-[10px] text-emerald-700 font-bold hover:underline"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  {CATEGORY_OPTIONS.map((cat) => {
+                    const isSelected = selectedCategory === cat.id || (!selectedCategory && cat.id === 'All');
+                    const count = categoryCounts[cat.id] || 0;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setSelectedCategory(cat.id === 'All' ? '' : cat.id)}
+                        className={`w-full py-2 px-2.5 rounded-xl text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-emerald-50 text-emerald-900 border border-emerald-300 font-bold'
+                            : 'text-slate-700 hover:bg-slate-50 border border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>{cat.icon}</span>
+                          <span>{cat.label}</span>
+                        </div>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                          isSelected ? 'bg-emerald-700 text-white font-bold' : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* DISTANCE RADIUS (OpenStreetMap GPS powered) */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
@@ -494,6 +696,18 @@ export default function ExploreFoodPage() {
 
                   {/* Active Filter Pills */}
                   <div className="flex items-center gap-1.5 flex-wrap ml-2">
+                    {searchQuery && (
+                      <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs px-2.5 py-0.5 rounded-full flex items-center gap-1 font-bold">
+                        <span>"{searchQuery}"</span>
+                        <X className="w-3 h-3 cursor-pointer hover:text-rose-600" onClick={() => setSearchQuery('')} />
+                      </span>
+                    )}
+                    {selectedCategory && selectedCategory !== 'All' && (
+                      <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs px-2.5 py-0.5 rounded-full flex items-center gap-1 font-bold">
+                        <span>Category: {selectedCategory}</span>
+                        <X className="w-3 h-3 cursor-pointer hover:text-rose-600" onClick={() => setSelectedCategory('')} />
+                      </span>
+                    )}
                     {distanceRadius !== 'Any Distance' && (
                       <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-0.5 rounded-full flex items-center gap-1 font-medium">
                         {distanceRadius} <X className="w-3 h-3 cursor-pointer" onClick={() => setDistanceRadius('Any Distance')} />

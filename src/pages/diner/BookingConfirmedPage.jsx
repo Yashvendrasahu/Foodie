@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
 import OpenStreetMap from '../../components/OpenStreetMap.jsx';
+import RealQRCode from '../../components/RealQRCode.jsx';
 import {
   CheckCircle2, Copy, Clock, AlertTriangle, MapPin, Phone,
   Navigation, XCircle, ShieldCheck, ChevronRight, Share2, Sparkles, Check
@@ -121,58 +122,13 @@ export default function BookingConfirmedPage() {
               </button>
             </div>
 
-            {/* QR Code Graphic with Foodie Logo Center */}
+            {/* Real Dynamic QR Code Pass */}
             <div className="flex flex-col items-center justify-center py-2">
-              <div className="p-5 bg-white rounded-3xl border-2 border-dashed border-emerald-300 shadow-inner relative inline-block">
-                
-                {/* Simulated high-fidelity QR */}
-                <div className="w-48 h-48 sm:w-56 sm:h-56 bg-white relative flex items-center justify-center">
-                  <svg className="w-full h-full" viewBox="0 0 100 100" fill="none">
-                    {/* QR Code pattern */}
-                    <rect x="5" y="5" width="28" height="28" rx="4" fill="#0f172a" />
-                    <rect x="9" y="9" width="20" height="20" rx="2" fill="white" />
-                    <rect x="13" y="13" width="12" height="12" rx="1" fill="#047857" />
-
-                    <rect x="67" y="5" width="28" height="28" rx="4" fill="#0f172a" />
-                    <rect x="71" y="9" width="20" height="20" rx="2" fill="white" />
-                    <rect x="75" y="13" width="12" height="12" rx="1" fill="#047857" />
-
-                    <rect x="5" y="67" width="28" height="28" rx="4" fill="#0f172a" />
-                    <rect x="9" y="71" width="20" height="20" rx="2" fill="white" />
-                    <rect x="13" y="75" width="12" height="12" rx="1" fill="#047857" />
-
-                    {/* Data modules */}
-                    <rect x="38" y="10" width="8" height="8" fill="#0f172a" />
-                    <rect x="50" y="10" width="8" height="8" fill="#0f172a" />
-                    <rect x="38" y="24" width="6" height="6" fill="#0f172a" />
-                    <rect x="48" y="22" width="10" height="6" fill="#0f172a" />
-                    
-                    <rect x="10" y="38" width="8" height="8" fill="#0f172a" />
-                    <rect x="22" y="44" width="6" height="8" fill="#0f172a" />
-                    <rect x="12" y="52" width="8" height="6" fill="#0f172a" />
-                    
-                    <rect x="38" y="40" width="24" height="24" rx="6" fill="#047857" />
-                    <path d="M50 44a6 6 0 0 0-6 6v1h12v-1a6 6 0 0 0-6-6zm-1-1h2v1h-2v-1zm-6 9h14v1H43v-1zm2 2h10v1H45v-1z" fill="white" />
-
-                    <rect x="68" y="40" width="8" height="8" fill="#0f172a" />
-                    <rect x="80" y="44" width="10" height="6" fill="#0f172a" />
-                    <rect x="70" y="54" width="6" height="6" fill="#0f172a" />
-                    <rect x="82" y="54" width="8" height="8" fill="#0f172a" />
-
-                    <rect x="38" y="68" width="8" height="8" fill="#0f172a" />
-                    <rect x="50" y="72" width="6" height="8" fill="#0f172a" />
-                    <rect x="60" y="68" width="8" height="6" fill="#0f172a" />
-                    <rect x="40" y="80" width="12" height="6" fill="#0f172a" />
-                    <rect x="56" y="82" width="8" height="8" fill="#0f172a" />
-                    <rect x="70" y="78" width="10" height="6" fill="#0f172a" />
-                    <rect x="84" y="70" width="6" height="16" fill="#0f172a" />
-                  </svg>
-                </div>
-              </div>
+              <RealQRCode booking={booking} size={210} />
 
               <h4 className="font-extrabold text-sm text-slate-900 mt-3">Scan at Takeaway Counter</h4>
               <p className="text-xs text-slate-500 max-w-xs">
-                Show this QR code to the restaurant staff when collecting your food.
+                Show this official scannable QR code or token <span className="font-mono font-bold text-slate-800">#{booking.tokenCode}</span> to the restaurant staff when collecting your food.
               </p>
             </div>
 

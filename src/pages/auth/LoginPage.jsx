@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
 import {
   isSupabaseConfigured,
@@ -12,15 +12,24 @@ import {
   ShieldCheck, Eye, EyeOff, CheckCircle2, Lock, ArrowRight,
   User, Store, Shield, Sparkles, Building2, Utensils, Key,
   Check, ArrowLeft, Leaf, Database, Mail, AlertCircle, RefreshCw,
-  ExternalLink, Phone, AlertTriangle
+  ExternalLink, Phone, AlertTriangle, Camera, Upload, Image as ImageIcon
 } from 'lucide-react';
+
+const RESTAURANT_FACADE_PRESETS = [
+  { name: 'Grand Banquet & Restaurant', url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80' },
+  { name: 'Sharma Sweets & Pure Veg', url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80' },
+  { name: 'Patisserie Bakery & Café', url: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=800&q=80' },
+  { name: 'Commercial Kitchen Hub', url: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=800&q=80' }
+];
 
 export default function LoginPage() {
   const { navigate, showToast, switchRole, currentRole, performLogin } = useApp();
   
   // Auth state
   const [authMode, setAuthMode] = useState('signin'); // 'signin' | 'signup'
-  const [selectedRole, setSelectedRole] = useState(currentRole || 'diner');
+  const [selectedRole, setSelectedRole] = useState(
+    currentRole === 'admin' ? 'diner' : (currentRole || 'diner')
+  );
   
   // Form fields
   const [fullName, setFullName] = useState('');
@@ -29,18 +38,53 @@ export default function LoginPage() {
   const [phone, setPhone] = useState('');
   const [restaurantName, setRestaurantName] = useState('');
   const [fssaiLicense, setFssaiLicense] = useState('');
+  const [restaurantPhoto, setRestaurantPhoto] = useState('https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80');
+  const [restaurantPhotoName, setRestaurantPhotoName] = useState('sharma_storefront_facade.jpg');
+  const [isPhotoCompressing, setIsPhotoCompressing] = useState(false);
+  const restaurantPhotoInputRef = useRef(null);
   
   // UI states
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [loginError, setLoginError] = useState(null);
   
   // Email verification state
   const [awaitingVerification, setAwaitingVerification] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
   const [showConfigModal, setShowConfigModal] = useState(false);
+
+  // Quick Demo Login Helper
+  const handleQuickDemoLogin = (role = selectedRole) => {
+    if (role === 'partner') {
+      const demoPartner = {
+        id: 'usr-sharma-partner',
+        email: 'sharma@restaurant.com',
+        user_metadata: {
+          full_name: 'Sharma Sweets & Restaurant',
+          restaurant_name: 'Sharma Sweets & Restaurant',
+          role: 'partner'
+        }
+      };
+      performLogin(demoPartner, 'partner');
+      showToast('Signed in as Sharma Sweets & Restaurant Partner!', 'success');
+      navigate('partner-dashboard');
+    } else {
+      const demoDiner = {
+        id: 'USR-9021',
+        email: 'rahul.sharma@example.com',
+        user_metadata: {
+          full_name: 'Rahul Sharma',
+          role: 'diner'
+        }
+      };
+      performLogin(demoDiner, 'diner');
+      showToast('Signed in as Diner (Rahul Sharma)!', 'success');
+      navigate('home');
+    }
+  };
 
   // Sign In Handler
   const handleSignIn = async (e) => {
@@ -51,6 +95,7 @@ export default function LoginPage() {
     }
 
     setLoading(true);
+    setLoginError(null);
 
     try {
       if (isSupabaseConfigured) {
@@ -62,6 +107,15 @@ export default function LoginPage() {
             setVerificationEmail(email);
             setAwaitingVerification(true);
             showToast('Email address not yet confirmed. Please verify your email.', 'warning');
+            setLoading(false);
+            return;
+          }
+          if (errMsg.includes('invalid login credentials') || errMsg.includes('invalid_credentials')) {
+            setLoginError({
+              type: 'invalid_credentials',
+              message: 'Invalid email or password. If you have not created an account on this backend yet, you can register or sign in using quick demo mode.'
+            });
+            showToast('Invalid credentials. Click below to Create Account or use Demo mode.', 'error');
             setLoading(false);
             return;
           }
@@ -82,10 +136,57 @@ export default function LoginPage() {
       }
     } catch (err) {
       console.error('Sign In error:', err);
-      showToast(err.message || 'Failed to sign in. Please verify your credentials.', 'error');
+      setLoginError({
+        type: 'general',
+        message: err.message || 'Failed to sign in. Please verify your credentials or try Demo login.'
+      });
+      showToast(err.message || 'Failed to sign in. Please verify credentials.', 'error');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Compress and set restaurant storefront photo
+  const handleRestaurantPhotoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Please upload a valid image file (JPG, PNG).', 'error');
+      return;
+    }
+
+    setIsPhotoCompressing(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 1200;
+        let width = img.width;
+        let height = img.height;
+        if (width > height && width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+        setRestaurantPhoto(compressedDataUrl);
+        setRestaurantPhotoName(file.name);
+        setIsPhotoCompressing(false);
+        showToast(`📸 Restaurant storefront photo "${file.name}" attached!`, 'success');
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   // Sign Up Handler with real Supabase Auth
@@ -99,6 +200,17 @@ export default function LoginPage() {
     if (password.length < 8) {
       showToast('Password must be at least 8 characters long.', 'error');
       return;
+    }
+
+    if (selectedRole === 'partner') {
+      if (!restaurantName.trim() || !fssaiLicense.trim()) {
+        showToast('Please provide your restaurant name and FSSAI license.', 'error');
+        return;
+      }
+      if (!restaurantPhoto) {
+        showToast('Please upload or select a photo of your restaurant storefront.', 'error');
+        return;
+      }
     }
 
     if (!termsAccepted) {
@@ -115,7 +227,13 @@ export default function LoginPage() {
         phone: phone.trim() || undefined,
         restaurant_name: selectedRole === 'partner' ? restaurantName.trim() : undefined,
         fssai_license: selectedRole === 'partner' ? fssaiLicense.trim() : undefined,
+        restaurant_photo: selectedRole === 'partner' ? restaurantPhoto : undefined,
       };
+
+      if (selectedRole === 'partner' && restaurantPhoto) {
+        localStorage.setItem('foodie_partner_photo', restaurantPhoto);
+        localStorage.setItem('foodie_partner_restaurant', restaurantName.trim());
+      }
 
       if (isSupabaseConfigured) {
         const { data, error } = await authSignUp(email, password, metadata);
@@ -231,10 +349,10 @@ export default function LoginPage() {
               </div>
               <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-snug">
                 One Verified Platform. <br />
-                <span className="text-emerald-300">Three Dedicated Portals.</span>
+                <span className="text-emerald-300">Diner & Partner Portals.</span>
               </h2>
               <p className="text-xs sm:text-sm text-emerald-100/80 mt-2 leading-relaxed">
-                Connect your community, kitchen, or administrative team with zero-waste surplus recovery, FSSAI certified food inspections, and encrypted UPI escrow.
+                Connect your community or commercial kitchen with zero-waste surplus recovery, FSSAI certified food safety standards, and instant QR pickup vouchers.
               </p>
             </div>
 
@@ -245,22 +363,18 @@ export default function LoginPage() {
                   Selected Role:
                 </span>
                 <span className="bg-emerald-500/30 text-emerald-100 px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase">
-                  {selectedRole}
+                  {selectedRole === 'partner' ? 'Kitchen Partner' : 'Diner'}
                 </span>
               </div>
               <h4 className="font-bold text-white text-sm">
-                {selectedRole === 'diner'
-                  ? 'Diner & Community Food Rescuer'
-                  : selectedRole === 'partner'
+                {selectedRole === 'partner'
                   ? 'Commercial Kitchen Partner Hub'
-                  : 'Platform Super Admin Console'}
+                  : 'Diner & Community Food Rescuer'}
               </h4>
               <p className="text-[11px] text-emerald-100/80 leading-relaxed">
-                {selectedRole === 'diner'
-                  ? 'Reserve meals at 50%–70% off before nightly kitchen cutoff. Receive verified digital QR pickup vouchers.'
-                  : selectedRole === 'partner'
-                  ? 'List banquet & restaurant surplus batches in 30 seconds. Scan customer QR tokens at takeaway counters.'
-                  : 'Audit real-time surplus ledger, review kitchen FSSAI certificates, and manage escrow settlements.'}
+                {selectedRole === 'partner'
+                  ? 'List banquet & restaurant surplus batches in seconds. Scan customer QR tokens at takeaway counters with live camera validation.'
+                  : 'Reserve fresh meals at 50%–70% off before nightly kitchen cutoff. Receive verified digital QR pickup vouchers.'}
               </p>
             </div>
 
@@ -423,47 +537,47 @@ export default function LoginPage() {
                     </span>
                   </label>
 
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => setSelectedRole('diner')}
-                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                      className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
                         selectedRole === 'diner'
                           ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/20'
                           : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100'
                       }`}
                     >
-                      <User className={`w-4 h-4 ${selectedRole === 'diner' ? 'text-emerald-700' : 'text-slate-500'}`} />
-                      <div className="font-bold text-xs text-slate-900 mt-1">Diner</div>
-                      <div className="text-[10px] text-slate-500">Rescue Food</div>
+                      <div className="flex items-center justify-between">
+                        <User className={`w-5 h-5 ${selectedRole === 'diner' ? 'text-emerald-700' : 'text-slate-500'}`} />
+                        {selectedRole === 'diner' && (
+                          <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                        )}
+                      </div>
+                      <div className="mt-2">
+                        <div className="font-bold text-xs text-slate-900">Diner Portal</div>
+                        <div className="text-[10px] text-slate-500">Rescue Surplus Meals</div>
+                      </div>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setSelectedRole('partner')}
-                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                      className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
                         selectedRole === 'partner'
                           ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/20'
                           : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100'
                       }`}
                     >
-                      <Store className={`w-4 h-4 ${selectedRole === 'partner' ? 'text-emerald-700' : 'text-slate-500'}`} />
-                      <div className="font-bold text-xs text-slate-900 mt-1">Kitchen Partner</div>
-                      <div className="text-[10px] text-slate-500">List Surplus</div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedRole('admin')}
-                      className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                        selectedRole === 'admin'
-                          ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/20'
-                          : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Shield className={`w-4 h-4 ${selectedRole === 'admin' ? 'text-emerald-700' : 'text-slate-500'}`} />
-                      <div className="font-bold text-xs text-slate-900 mt-1">Platform Admin</div>
-                      <div className="text-[10px] text-slate-500">Auditing</div>
+                      <div className="flex items-center justify-between">
+                        <Store className={`w-5 h-5 ${selectedRole === 'partner' ? 'text-emerald-700' : 'text-slate-500'}`} />
+                        {selectedRole === 'partner' && (
+                          <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                        )}
+                      </div>
+                      <div className="mt-2">
+                        <div className="font-bold text-xs text-slate-900">Kitchen Partner</div>
+                        <div className="text-[10px] text-slate-500">List Food & Scan QR</div>
+                      </div>
                     </button>
                   </div>
                 </div>
@@ -489,28 +603,131 @@ export default function LoginPage() {
 
                 {/* Partner specific fields */}
                 {authMode === 'signup' && selectedRole === 'partner' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-emerald-50/50 border border-emerald-200 rounded-2xl">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-800">Restaurant / Hotel Name *</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="Sharma Sweets & Restaurant"
-                        value={restaurantName}
-                        onChange={(e) => setRestaurantName(e.target.value)}
-                        className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-600"
-                      />
+                  <div className="space-y-3 p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-2xl">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-800">Restaurant / Hotel Name *</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Sharma Sweets & Restaurant"
+                          value={restaurantName}
+                          onChange={(e) => setRestaurantName(e.target.value)}
+                          className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-600"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-800">FSSAI License # *</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="1001901100234"
+                          value={fssaiLicense}
+                          onChange={(e) => setFssaiLicense(e.target.value)}
+                          className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-600 font-mono"
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-800">FSSAI License # *</label>
+
+                    {/* Restaurant Storefront Photo Upload Section */}
+                    <div className="space-y-2 pt-2 border-t border-emerald-200/70">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <Camera className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Restaurant Storefront / Kitchen Photo *</span>
+                        </label>
+                        <span className="text-[10px] font-bold text-emerald-800 bg-white px-2 py-0.5 rounded-full border border-emerald-200">
+                          Mandatory for Verification
+                        </span>
+                      </div>
+
+                      {/* Hidden File Input */}
                       <input
-                        type="text"
-                        required
-                        placeholder="1001901100234"
-                        value={fssaiLicense}
-                        onChange={(e) => setFssaiLicense(e.target.value)}
-                        className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-600 font-mono"
+                        ref={restaurantPhotoInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleRestaurantPhotoUpload}
+                        className="hidden"
                       />
+
+                      <div className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200">
+                        <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 shrink-0 bg-slate-100 shadow-inner">
+                          {restaurantPhoto ? (
+                            <img src={restaurantPhoto} alt="Storefront Preview" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-400">
+                              <Building2 className="w-6 h-6" />
+                            </div>
+                          )}
+                          {isPhotoCompressing && (
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                              <RefreshCw className="w-4 h-4 text-white animate-spin" />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0 text-xs">
+                          <p className="font-bold text-slate-900 truncate">
+                            {restaurantPhotoName || 'restaurant_facade.jpg'}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            Shows on diner explore cards & pickup instructions
+                          </p>
+
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <button
+                              type="button"
+                              onClick={() => restaurantPhotoInputRef.current?.click()}
+                              className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] rounded-lg transition cursor-pointer flex items-center gap-1"
+                            >
+                              <Upload className="w-3 h-3" />
+                              <span>Upload Photo</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const captureInput = document.createElement('input');
+                                captureInput.type = 'file';
+                                captureInput.accept = 'image/*';
+                                captureInput.capture = 'environment';
+                                captureInput.onchange = handleRestaurantPhotoUpload;
+                                captureInput.click();
+                              }}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white font-bold text-[11px] rounded-lg transition cursor-pointer flex items-center gap-1"
+                            >
+                              <Camera className="w-3 h-3 text-emerald-400" />
+                              <span>Camera</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quick Facade Presets */}
+                      <div className="pt-1">
+                        <span className="text-[10px] font-semibold text-slate-500 block mb-1">
+                          Or select standard verified establishment style:
+                        </span>
+                        <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                          {RESTAURANT_FACADE_PRESETS.map((preset) => (
+                            <button
+                              type="button"
+                              key={preset.name}
+                              onClick={() => {
+                                setRestaurantPhoto(preset.url);
+                                setRestaurantPhotoName(`${preset.name}.jpg`);
+                                showToast(`Applied ${preset.name} storefront photo`, 'info');
+                              }}
+                              className={`p-1.5 rounded-lg border text-left truncate transition cursor-pointer ${
+                                restaurantPhoto === preset.url
+                                  ? 'border-emerald-600 bg-emerald-100 text-emerald-900 font-bold'
+                                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                              }`}
+                            >
+                              • {preset.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -612,6 +829,43 @@ export default function LoginPage() {
                   </div>
                 )}
 
+                {/* Error Banner when Sign In fails */}
+                {authMode === 'signin' && loginError && (
+                  <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl space-y-2 animate-in fade-in">
+                    <div className="flex items-start gap-2 text-rose-800 text-xs">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="font-bold">Login Unsuccessful</p>
+                        <p className="text-[11px] text-rose-700 leading-relaxed mt-0.5">
+                          {loginError.message}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLoginError(null);
+                          setAuthMode('signup');
+                        }}
+                        className="py-1.5 px-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] rounded-lg text-center transition cursor-pointer"
+                      >
+                        Create New Account
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLoginError(null);
+                          handleQuickDemoLogin(selectedRole);
+                        }}
+                        className="py-1.5 px-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 font-bold text-[11px] rounded-lg text-center transition cursor-pointer shadow-xs"
+                      >
+                        Sign In with Demo
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Submit Action Button */}
                 <button
                   type="submit"
@@ -624,13 +878,47 @@ export default function LoginPage() {
                     <>
                       <span>
                         {authMode === 'signin'
-                          ? `Sign In to ${selectedRole.toUpperCase()}`
-                          : `Create Verified ${selectedRole.toUpperCase()} Account`}
+                          ? `Sign In to ${selectedRole === 'partner' ? 'Kitchen Partner' : 'Diner'}`
+                          : `Create Verified ${selectedRole === 'partner' ? 'Kitchen Partner' : 'Diner'} Account`}
                       </span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
+
+                {/* One-click Demo helper pills */}
+                {authMode === 'signin' && (
+                  <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block text-center">
+                      Quick Instant Testing (1-Click Demo)
+                    </span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleQuickDemoLogin('diner')}
+                        className="p-2 rounded-xl bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 border border-slate-200 text-left transition cursor-pointer"
+                      >
+                        <div className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                          <User className="w-3 h-3 text-emerald-600" />
+                          <span>Demo Diner</span>
+                        </div>
+                        <div className="text-[9px] text-slate-500">Rahul Sharma</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleQuickDemoLogin('partner')}
+                        className="p-2 rounded-xl bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 border border-slate-200 text-left transition cursor-pointer"
+                      >
+                        <div className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                          <Store className="w-3 h-3 text-emerald-600" />
+                          <span>Demo Kitchen</span>
+                        </div>
+                        <div className="text-[9px] text-slate-500">Sharma Sweets</div>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Cancel / Browse as Guest */}
                 <button

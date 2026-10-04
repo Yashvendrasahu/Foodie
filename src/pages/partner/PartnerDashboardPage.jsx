@@ -1,17 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import PartnerLayout from './PartnerLayout.jsx';
 import { useApp } from '../../context/AppContext.jsx';
+import RealQRScannerModal from '../../components/RealQRScannerModal.jsx';
 import {
   Utensils, PlusCircle, ShoppingBag, TrendingUp, Clock,
   CheckCircle2, ArrowRight, AlertCircle, Sparkles, QrCode,
-  ShieldCheck, Leaf, Flame
+  ShieldCheck, Leaf, Flame, Camera
 } from 'lucide-react';
 
 export default function PartnerDashboardPage() {
   const { meals, bookings, navigate, showToast } = useApp();
+  const [showScannerModal, setShowScannerModal] = useState(false);
 
-  const activeMeals = meals.filter(m => m.restaurantId === 'rest-sharma' && m.status === 'active');
-  const partnerBookings = bookings.filter(b => b.restaurantName.includes('Sharma') || b.tokenCode);
+  const activeMeals = meals.filter(m => m.restaurantId === 'rest-sharma' || (m.restaurant || '').includes('Sharma') || m.status === 'active');
+  const partnerBookings = bookings.filter(b => (b.restaurantName || '').includes('Sharma') || b.tokenCode);
 
   return (
     <PartnerLayout activePage="dashboard">
@@ -130,23 +132,43 @@ export default function PartnerDashboardPage() {
             </div>
 
             <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-100 text-center space-y-3">
-              <QrCode className="w-12 h-12 text-emerald-600 mx-auto" />
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-xs">
+                <Camera className="w-6 h-6 text-emerald-800" />
+              </div>
               <div>
                 <h4 className="font-bold text-sm text-gray-900">Diner Arrival at Counter?</h4>
                 <p className="text-xs text-gray-600 mt-0.5">
-                  Verify digital token code or scan QR code to release food parcel securely.
+                  Scan customer QR pass using real live webcam or verify token code.
                 </p>
               </div>
-              <button
-                onClick={() => navigate('partner-bookings')}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-xs transition flex items-center justify-center gap-2"
-              >
-                <span>Open Token Verification Scanner</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setShowScannerModal(true)}
+                  className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Camera className="w-4 h-4 text-emerald-300" />
+                  <span>Open Real Webcam Scanner</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('partner-bookings')}
+                  className="w-full py-2 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>Manual Token & Queue Ledger</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Real Live Camera QR Scanner Modal */}
+        <RealQRScannerModal
+          isOpen={showScannerModal}
+          onClose={() => setShowScannerModal(false)}
+        />
+
       </div>
     </PartnerLayout>
   );
