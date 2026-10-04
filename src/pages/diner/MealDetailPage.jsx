@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
+import OpenStreetMap from '../../components/OpenStreetMap.jsx';
 import {
   Clock, MapPin, ShieldCheck, Leaf, CheckCircle2, ChevronRight,
   Sparkles, AlertCircle, ShoppingBag, Plus, Minus, ArrowRight,
@@ -8,7 +9,7 @@ import {
 import confetti from 'canvas-confetti';
 
 export default function MealDetailPage() {
-  const { selectedMealId, meals, bookMeal, navigate } = useApp();
+  const { selectedMealId, meals, bookMeal, navigate, userLocation } = useApp();
   const [portions, setPortions] = useState(1);
   const [specialNote, setSpecialNote] = useState('');
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
@@ -246,9 +247,66 @@ export default function MealDetailPage() {
 
               <div className="pt-2 flex items-center justify-between text-xs text-slate-500">
                 <span className="truncate">{meal.restaurantAddress}</span>
-                <button onClick={() => navigate('explore')} className="text-emerald-700 font-bold hover:underline shrink-0 ml-2">
+                <button onClick={() => navigate('explore')} className="text-emerald-700 font-bold hover:underline shrink-0 ml-2 cursor-pointer">
                   View All Partner Dishes ↗
                 </button>
+              </div>
+            </div>
+
+            {/* Interactive OpenStreetMap Pickup Location Card */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <h4 className="font-extrabold text-base text-slate-900">
+                      Pickup Location on OpenStreetMap
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Navigate directly to the verified restaurant counter to collect your meal
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                    📍 {meal.pickupCounter || 'Counter #1'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Map embed */}
+              <OpenStreetMap
+                singleLocation={{
+                  lat: meal.lat || 22.7245,
+                  lng: meal.lng || 75.8640,
+                  restaurant: meal.restaurant,
+                  address: meal.restaurantAddress,
+                  pickupCounter: meal.pickupCounter,
+                  price: meal.rescuePrice
+                }}
+                userCoords={userLocation?.coords}
+                zoom={15}
+                height="320px"
+              />
+
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Navigation className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <span>
+                    Pickup Bay: <b>{meal.pickupCounter || 'Takeaway Counter #1'}</b> • {meal.restaurantAddress}
+                  </span>
+                </div>
+
+                <a
+                  href={`https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${userLocation?.coords?.[0] || 22.72},${userLocation?.coords?.[1] || 75.86};${meal.lat || 22.7245},${meal.lng || 75.8640}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                >
+                  <span>Open Directions</span>
+                  <span>↗</span>
+                </a>
               </div>
             </div>
 
@@ -336,28 +394,39 @@ export default function MealDetailPage() {
                   <span className="text-slate-400 font-medium">Max 4 per customer</span>
                 </div>
 
-                <div className="flex items-center justify-between bg-slate-50 p-2 rounded-2xl border border-slate-200">
-                  <button
-                    onClick={() => setPortions(Math.max(1, portions - 1))}
-                    disabled={portions <= 1}
-                    className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 flex items-center justify-center disabled:opacity-40 transition-colors shadow-xs"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-                  <span className="font-bold text-base text-slate-900">
-                    {portions} portion{portions > 1 ? 's' : ''}
-                  </span>
-                  <button
-                    onClick={() => setPortions(Math.min(4, Math.min(meal.portionsLeft, portions + 1)))}
-                    disabled={portions >= 4 || portions >= meal.portionsLeft}
-                    className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 flex items-center justify-center disabled:opacity-40 transition-colors shadow-xs"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
+                {meal.portionsLeft === 0 ? (
+                  <div className="bg-rose-50 border border-rose-200 text-rose-700 p-3 rounded-2xl text-center text-xs font-bold">
+                    ⚠️ All portions have been reserved. Sold out!
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between bg-slate-50 p-2 rounded-2xl border border-slate-200">
+                    <button
+                      onClick={() => setPortions(Math.max(1, portions - 1))}
+                      disabled={portions <= 1}
+                      className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 flex items-center justify-center disabled:opacity-40 transition-colors shadow-xs"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <span className="font-bold text-base text-slate-900">
+                      {portions} portion{portions > 1 ? 's' : ''}
+                    </span>
+                    <button
+                      onClick={() => setPortions(Math.min(4, Math.min(meal.portionsLeft, portions + 1)))}
+                      disabled={portions >= 4 || portions >= meal.portionsLeft}
+                      className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 flex items-center justify-center disabled:opacity-40 transition-colors shadow-xs"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
 
                 <div className="text-[11px] text-amber-700 flex items-center gap-1 font-medium">
-                  <Clock className="w-3.5 h-3.5" /> High demand: {meal.portionsLeft} portions remaining tonight
+                  <Clock className="w-3.5 h-3.5" />
+                  {meal.portionsLeft > 0 ? (
+                    <span>Real-time availability: <strong>{meal.portionsLeft} portions</strong> remaining</span>
+                  ) : (
+                    <span className="text-rose-600 font-bold">Sold Out for tonight</span>
+                  )}
                 </div>
               </div>
 
@@ -368,8 +437,9 @@ export default function MealDetailPage() {
                   type="text"
                   placeholder="e.g. Please pack cutlery / extra tissues"
                   value={specialNote}
+                  disabled={meal.portionsLeft === 0}
                   onChange={(e) => setSpecialNote(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-600"
+                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-emerald-600 disabled:opacity-50"
                 />
               </div>
 
@@ -396,13 +466,26 @@ export default function MealDetailPage() {
                 </div>
               </div>
 
-              {/* Book Now Button */}
+              {/* Surplus Marketplace Disclaimer */}
+              <div className="bg-emerald-50/70 border border-emerald-200 text-emerald-900 text-[11px] p-2.5 rounded-xl flex items-center gap-2">
+                <span className="text-base">🛍️</span>
+                <span><strong>Self-Pickup Only:</strong> Collect from restaurant counter before closing. No delivery.</span>
+              </div>
+
+              {/* Reserve Now Button */}
               <button
                 onClick={handleBooking}
-                className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-3.5 px-4 rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 text-sm"
+                disabled={meal.portionsLeft === 0}
+                className={`w-full font-bold py-3.5 px-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm ${
+                  meal.portionsLeft === 0
+                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
+                    : 'bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white hover:shadow-xl cursor-pointer'
+                }`}
               >
                 <ShoppingBag className="w-4 h-4" />
-                Book Now for Pickup
+                {meal.portionsLeft === 0
+                  ? 'Sold Out - No Portions Available'
+                  : `Reserve ${portions} Portion${portions > 1 ? 's' : ''} (₹${totalAmount})`}
               </button>
 
               {/* Guarantees list */}
@@ -433,8 +516,8 @@ export default function MealDetailPage() {
                   </div>
                 </div>
                 <button
-                  onClick={() => alert(`Directions to ${meal.restaurantAddress}`)}
-                  className="text-emerald-700 font-bold hover:underline"
+                  onClick={() => showToast(`Directions loaded: ${meal.restaurantAddress}`, 'info')}
+                  className="text-emerald-700 font-bold hover:underline cursor-pointer"
                 >
                   Directions
                 </button>

@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext.jsx';
 import { ShieldCheck, CheckCircle2, Share2, Globe, Mail, MessageSquare } from 'lucide-react';
 
 export default function Footer() {
-  const { navigate, switchRole } = useApp();
+  const { navigate, switchRole, showToast } = useApp();
 
   return (
     <footer className="bg-white border-t border-slate-200 mt-20 pt-16 pb-12 text-slate-600 text-sm">
@@ -31,28 +31,29 @@ export default function Footer() {
 
             <div className="flex items-center gap-3 pt-2">
               <button 
-                onClick={() => alert('Shared Foodie rescue movement link copied!')}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-center text-slate-500 transition-colors"
+                onClick={() => showToast('Foodie rescue link copied to clipboard!', 'success')}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-center text-slate-500 transition-colors cursor-pointer"
                 title="Share"
               >
                 <Share2 className="w-4 h-4" />
               </button>
               <button 
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-center text-slate-500 transition-colors"
-                title="Website"
+                onClick={() => showToast('Foodie Platform Status: All 24 Kitchen Nodes Healthy', 'info')}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-center text-slate-500 transition-colors cursor-pointer"
+                title="Website Status"
               >
                 <Globe className="w-4 h-4" />
               </button>
               <button 
                 onClick={() => navigate('profile')}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-center text-slate-500 transition-colors"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-center text-slate-500 transition-colors cursor-pointer"
                 title="Contact"
               >
                 <Mail className="w-4 h-4" />
               </button>
               <button 
                 onClick={() => navigate('admin-complaints')}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-center text-slate-500 transition-colors"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-center text-slate-500 transition-colors cursor-pointer"
                 title="Support Chat"
               >
                 <MessageSquare className="w-4 h-4" />
@@ -129,7 +130,7 @@ export default function Footer() {
                 </button>
               </li>
               <li>
-                <button onClick={() => navigate('admin-reports')} className="hover:text-emerald-700 transition-colors">
+                <button onClick={() => navigate('partner-analytics')} className="hover:text-emerald-700 transition-colors">
                   Our Environmental Impact
                 </button>
               </li>

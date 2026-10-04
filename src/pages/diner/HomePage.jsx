@@ -4,11 +4,11 @@ import HeroSection from '../../components/HeroSection.jsx';
 import {
   Search, MapPin, SlidersHorizontal, Sparkles, Clock, Navigation,
   ShieldCheck, Leaf, TrendingUp, Users, ArrowRight, Star, Quote,
-  ChevronRight, CheckCircle2, Heart, Award
+  ChevronRight, CheckCircle2, Heart, Award, Map as MapIcon
 } from 'lucide-react';
 
 export default function HomePage() {
-  const { meals, navigate, switchRole } = useApp();
+  const { meals, mealsWithDistance, navigate, switchRole } = useApp();
   const [activeCategory, setActiveCategory] = useState('All');
 
   const categories = [
@@ -20,7 +20,7 @@ export default function HomePage() {
     { name: 'Snacks & Starters', count: 12, icon: '🥪' }
   ];
 
-  const featuredMeals = meals.slice(0, 4);
+  const featuredMeals = (mealsWithDistance || meals).slice(0, 4);
 
   return (
     <div className="min-h-screen bg-[#fafcfb]">
@@ -179,9 +179,33 @@ export default function HomePage() {
 
             <button
               onClick={() => navigate('profile')}
-              className="bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs transition-colors whitespace-nowrap"
+              className="bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs transition-colors whitespace-nowrap cursor-pointer"
             >
               Turn on Alerts
+            </button>
+          </div>
+
+          {/* OpenStreetMap Discovery Card */}
+          <div className="mt-6 bg-gradient-to-r from-emerald-900 to-slate-900 rounded-3xl p-6 sm:p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
+            <div className="space-y-2 text-left">
+              <div className="inline-flex items-center gap-2 bg-emerald-800/80 text-emerald-200 text-xs font-bold px-3 py-1 rounded-full border border-emerald-700/60">
+                <MapIcon className="w-3.5 h-3.5" /> OpenStreetMap Integration
+              </div>
+              <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+                Explore Real Surplus Food On Live Interactive Map
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-300 max-w-xl">
+                View verified commercial kitchen pickup points, distance radii, and live discount price tags across your neighborhood.
+              </p>
+            </div>
+
+            <button
+              onClick={() => navigate('explore')}
+              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-6 py-3.5 rounded-2xl shadow-lg transition-all text-xs flex items-center gap-2 shrink-0 cursor-pointer"
+            >
+              <Navigation className="w-4 h-4" />
+              <span>Open Map Food Radar</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
 
@@ -317,8 +341,8 @@ export default function HomePage() {
                   Join as a Hotel Partner
                 </button>
                 <button
-                  onClick={() => alert('Potential Recovery Calculator: For 40 daily meals, expected monthly net recovery is ₹42,000 to ₹75,000.')}
-                  className="text-emerald-200 hover:text-white underline underline-offset-4 text-xs font-medium"
+                  onClick={() => showToast('Potential Recovery: For 40 daily meals, expected monthly net kitchen revenue is ₹42,000 to ₹75,000.', 'success')}
+                  className="text-emerald-200 hover:text-white underline underline-offset-4 text-xs font-medium cursor-pointer"
                 >
                   Calculate potential recovery (₹1,500 – ₹4,200/mo) ↗
                 </button>

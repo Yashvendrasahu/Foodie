@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import PartnerLayout from './PartnerLayout.jsx';
 import { useApp } from '../../context/AppContext.jsx';
+import OpenStreetMap from '../../components/OpenStreetMap.jsx';
 import {
   PlusCircle, Upload, CheckCircle2, Clock, ShieldCheck, Leaf,
-  Sparkles, Camera, ArrowLeft, Eye, Smartphone, AlertCircle
+  Sparkles, Camera, ArrowLeft, Eye, Smartphone, AlertCircle, MapPin
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -26,6 +27,8 @@ export default function PartnerAddFoodPage() {
   const [counterGuidance, setCounterGuidance] = useState(
     'Please collect the food from Takeaway Counter #2 near the main reception desk. Show your Foodie digital token or QR code to staff member Rajat.'
   );
+  const [restaurantAddress, setRestaurantAddress] = useState('Plot 42, University Commercial Complex, Sector 4, MG Road, Indore');
+  const [kitchenCoords, setKitchenCoords] = useState({ lat: 22.7245, lng: 75.8640 });
   const [safetyCertified, setSafetyCertified] = useState(true);
   const [photoUrl, setPhotoUrl] = useState('https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?auto=format&fit=crop&w=800&q=80');
 
@@ -48,7 +51,7 @@ export default function PartnerAddFoodPage() {
 
     addNewSurplusListing({
       name: foodName,
-      subTitle: 'Deluxe Veg Thali (Eco-Box)',
+      subTitle: 'Fresh Kitchen Surplus Box',
       category: category,
       dietary: dietary,
       description: description,
@@ -58,7 +61,10 @@ export default function PartnerAddFoodPage() {
       startTime: startTime,
       endTime: endTime,
       image: photoUrl,
-      pickupCounter: 'Takeaway Counter #2'
+      pickupCounter: counterGuidance ? 'Takeaway Counter #1' : 'Takeaway Counter #1',
+      restaurantAddress: restaurantAddress,
+      lat: kitchenCoords.lat,
+      lng: kitchenCoords.lng
     });
   };
 
@@ -234,8 +240,8 @@ export default function PartnerAddFoodPage() {
                   <div className="flex items-center gap-3 pt-2">
                     <button
                       type="button"
-                      onClick={() => alert('Photo updated with today’s banquet batch shot.')}
-                      className="text-emerald-700 font-bold hover:underline"
+                      onClick={() => showToast('Surplus batch photo updated with fresh kitchen shot.', 'success')}
+                      className="text-emerald-700 font-bold hover:underline cursor-pointer"
                     >
                       Change Photo
                     </button>
@@ -408,6 +414,45 @@ export default function PartnerAddFoodPage() {
                   onChange={(e) => setCounterGuidance(e.target.value)}
                   className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden font-normal"
                 />
+              </div>
+
+              {/* Kitchen Pickup Address & OpenStreetMap Pinpoint */}
+              <div className="space-y-2 pt-2 border-t border-slate-100 text-xs">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700">Restaurant Street Address *</label>
+                  <input
+                    type="text"
+                    value={restaurantAddress}
+                    onChange={(e) => setRestaurantAddress(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800"
+                  />
+                </div>
+
+                <div className="space-y-1 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                      Pin Restaurant on OpenStreetMap *
+                    </label>
+                    <span className="text-[10px] text-emerald-700 font-mono bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      GPS: {kitchenCoords.lat.toFixed(4)}, {kitchenCoords.lng.toFixed(4)}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Click anywhere on the map or drag the orange marker to place your kitchen takeaway point.
+                  </p>
+                  
+                  <div className="mt-2">
+                    <OpenStreetMap
+                      isPicker={true}
+                      pickerLocation={kitchenCoords}
+                      onLocationSelect={(coords) => setKitchenCoords(coords)}
+                      center={[kitchenCoords.lat, kitchenCoords.lng]}
+                      zoom={14}
+                      height="230px"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 

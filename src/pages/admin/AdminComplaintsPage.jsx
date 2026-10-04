@@ -9,15 +9,29 @@ import {
 export default function AdminComplaintsPage() {
   const { supportTickets, resolveTicket, showToast } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTicketId, setSelectedTicketId] = useState(supportTickets[0]?.id || 't-1');
+  const [selectedTicketId, setSelectedTicketId] = useState(supportTickets[0]?.id || 'TKT-3901');
   const [resolutionNote, setResolutionNote] = useState('');
+
+  // Universal helper getters to handle schema variations safely
+  const getSubject = (t) => t?.subject || t?.issueType || (t?.description ? t.description.slice(0, 45) + '...' : 'Customer Support Request');
+  const getUserName = (t) => t?.userName || t?.dinerName || 'Diner';
+  const getUserRole = (t) => t?.userRole || (t?.dinerName ? 'Diner' : 'Customer');
+  const getCreatedAt = (t) => t?.createdAt || t?.time || 'Today';
+  const getPriority = (t) => (t?.priority || 'Normal').toLowerCase();
+  const getStatus = (t) => {
+    const s = (t?.status || 'open').toLowerCase();
+    if (s.includes('resolv') || s.includes('closed')) return 'resolved';
+    return 'open';
+  };
 
   const selectedTicket = supportTickets.find(t => t.id === selectedTicketId) || supportTickets[0];
 
   const filteredTickets = supportTickets.filter(t => {
-    return t.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           t.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           t.id.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = (searchQuery || '').toLowerCase().trim();
+    const subject = getSubject(t).toLowerCase();
+    const user = getUserName(t).toLowerCase();
+    const id = (t?.id || t?.ticketNumber || '').toLowerCase();
+    return !q || subject.includes(q) || user.includes(q) || id.includes(q);
   });
 
   const handleResolve = () => {
@@ -54,6 +68,10 @@ export default function AdminComplaintsPage() {
             <div className="divide-y divide-gray-100">
               {filteredTickets.map((ticket) => {
                 const isSelected = selectedTicket?.id === ticket.id;
+                const status = getStatus(ticket);
+                const priority = getPriority(ticket);
+                const isHigh = priority.includes('high') || priority.includes('urgent');
+
                 return (
                   <div
                     key={ticket.id}
@@ -66,11 +84,11 @@ export default function AdminComplaintsPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono font-bold text-gray-700">#{ticket.id}</span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          ticket.priority === 'high' ? 'bg-rose-100 text-rose-800' : 'bg-gray-100 text-gray-700'
+                          isHigh ? 'bg-rose-100 text-rose-800' : 'bg-gray-100 text-gray-700'
                         }`}>
-                          {ticket.priority} priority
+                          {ticket.priority || 'Normal'}
                         </span>
-                        {ticket.status === 'open' ? (
+                        {status === 'open' ? (
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
                             Open
                           </span>
@@ -80,9 +98,9 @@ export default function AdminComplaintsPage() {
                           </span>
                         )}
                       </div>
-                      <h4 className="text-sm font-bold text-gray-900 mt-1">{ticket.subject}</h4>
+                      <h4 className="text-sm font-bold text-gray-900 mt-1">{getSubject(ticket)}</h4>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        By {ticket.userName} ({ticket.userRole}) • {ticket.createdAt}
+                        By {getUserName(ticket)} ({getUserRole(ticket)}) • {getCreatedAt(ticket)}
                       </p>
                     </div>
                   </div>
@@ -96,33 +114,33 @@ export default function AdminComplaintsPage() {
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div>
                 <span className="text-xs font-bold text-gray-500">Ticket #{selectedTicket?.id}</span>
-                <h3 className="text-base font-bold text-gray-900 mt-0.5">{selectedTicket?.subject}</h3>
+                <h3 className="text-base font-bold text-gray-900 mt-0.5">{getSubject(selectedTicket)}</h3>
               </div>
             </div>
 
             <div className="p-3 bg-gray-50 rounded-lg text-xs space-y-2">
               <div className="flex justify-between">
                 <span className="text-gray-500">Requester:</span>
-                <span className="font-bold text-gray-900">{selectedTicket?.userName}</span>
+                <span className="font-bold text-gray-900">{getUserName(selectedTicket)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Role:</span>
-                <span className="capitalize font-semibold text-gray-800">{selectedTicket?.userRole}</span>
+                <span className="capitalize font-semibold text-gray-800">{getUserRole(selectedTicket)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Created:</span>
-                <span className="text-gray-700">{selectedTicket?.createdAt}</span>
+                <span className="text-gray-700">{getCreatedAt(selectedTicket)}</span>
               </div>
             </div>
 
             <div>
               <label className="text-xs font-bold text-gray-700 block mb-1">Issue Description</label>
               <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-800 leading-relaxed">
-                {selectedTicket?.description}
+                {selectedTicket?.description || 'Diner reported issue with meal pickup packaging.'}
               </div>
             </div>
 
-            {selectedTicket?.status === 'open' ? (
+            {getStatus(selectedTicket) === 'open' ? (
               <div className="space-y-3 pt-2">
                 <label className="text-xs font-bold text-gray-700 block">Resolution Action & Reply</label>
                 <textarea
@@ -134,7 +152,7 @@ export default function AdminComplaintsPage() {
                 />
                 <button
                   onClick={handleResolve}
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-xs transition flex items-center justify-center gap-1.5"
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>Mark Resolved & Issue Credit</span>

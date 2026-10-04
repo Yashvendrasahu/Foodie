@@ -1,23 +1,39 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
+import OpenStreetMap from '../../components/OpenStreetMap.jsx';
+import { POPULAR_CITIES, formatDistance } from '../../lib/geoUtils.js';
 import {
   Search, MapPin, SlidersHorizontal, Clock, Navigation, CheckCircle2,
-  Leaf, ArrowRight, X, RotateCcw, ChevronDown, Sparkles
+  Leaf, ArrowRight, X, RotateCcw, ChevronDown, Sparkles, Map as MapIcon,
+  LayoutGrid, SplitSquareVertical, LocateFixed, Loader2, Compass
 } from 'lucide-react';
 
 export default function ExploreFoodPage() {
-  const { meals, navigate } = useApp();
+  const {
+    mealsWithDistance,
+    userLocation,
+    detectLocation,
+    isDetectingLocation,
+    setUserCity,
+    navigate,
+    setSelectedMealId,
+    showToast
+  } = useApp();
+
+  // View Mode: 'grid' | 'map' | 'split'
+  const [viewMode, setViewMode] = useState('grid');
+  const [activeMealOnMap, setActiveMealOnMap] = useState(null);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDietary, setSelectedDietary] = useState('All Meals');
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [priceRange, setPriceRange] = useState('₹60 – ₹100');
-  const [distanceRadius, setDistanceRadius] = useState('Within 3 km');
-  const [pickupWindow, setPickupWindow] = useState('Tonight (6 PM – 9 PM)');
-  const [availableNowOnly, setAvailableNowOnly] = useState(true);
+  const [priceRange, setPriceRange] = useState('All');
+  const [distanceRadius, setDistanceRadius] = useState('Any Distance');
+  const [pickupWindow, setPickupWindow] = useState('All');
+  const [availableNowOnly, setAvailableNowOnly] = useState(false);
   const [urgentOnly, setUrgentOnly] = useState(false);
-  const [sortBy, setSortBy] = useState('Recommended');
+  const [sortBy, setSortBy] = useState('Distance: Nearest');
 
   // Clear filters
   const resetFilters = () => {
@@ -29,18 +45,20 @@ export default function ExploreFoodPage() {
     setPickupWindow('All');
     setAvailableNowOnly(false);
     setUrgentOnly(false);
+    setSortBy('Distance: Nearest');
   };
 
-  // Filter logic
+  // Filter and sort meals
   const filteredMeals = useMemo(() => {
-    return meals.filter((meal) => {
+    let result = (mealsWithDistance || []).filter((meal) => {
       // Search
       if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        const matchesName = meal.name.toLowerCase().includes(q);
-        const matchesRestaurant = meal.restaurant.toLowerCase().includes(q);
-        const matchesDesc = meal.description.toLowerCase().includes(q);
-        if (!matchesName && !matchesRestaurant && !matchesDesc) return false;
+        const q = searchQuery.toLowerCase().trim();
+        const matchesName = (meal.name || '').toLowerCase().includes(q);
+        const matchesRestaurant = (meal.restaurant || meal.restaurantName || '').toLowerCase().includes(q);
+        const matchesDesc = (meal.description || '').toLowerCase().includes(q);
+        const matchesCat = (meal.category || '').toLowerCase().includes(q);
+        if (!matchesName && !matchesRestaurant && !matchesDesc && !matchesCat) return false;
       }
 
       // Dietary
@@ -57,58 +75,95 @@ export default function ExploreFoodPage() {
 
       // Price Range
       if (priceRange === 'Under ₹60' && meal.rescuePrice >= 60) return false;
-      if (priceRange === '₹60 – ₹100' && (meal.rescuePrice < 60 || meal.rescuePrice > 100)) {
-        // loose filter to let realistic items show
-      }
-      if (priceRange === 'Above ₹150' && meal.rescuePrice <= 150) return false;
+      if (priceRange === '₹60 – ₹100' && (meal.rescuePrice < 60 || meal.rescuePrice > 100)) return false;
+      if (priceRange === 'Above ₹100' && meal.rescuePrice <= 100) return false;
 
-      // Distance
+      // Distance (computed via real OpenStreetMap Haversine coordinates)
       if (distanceRadius === '< 1 km' && meal.distanceNum >= 1.0) return false;
       if (distanceRadius === 'Within 3 km' && meal.distanceNum > 3.0) return false;
+      if (distanceRadius === 'Within 5 km' && meal.distanceNum > 5.0) return false;
+
+      // Availability
+      if (availableNowOnly && meal.portionsLeft <= 0) return false;
 
       // Urgent
-      if (urgentOnly && meal.portionsLeft > 3) return false;
+      if (urgentOnly && (meal.portionsLeft > 3 || meal.portionsLeft === 0)) return false;
 
       return true;
     });
-  }, [meals, searchQuery, selectedDietary, selectedCategory, priceRange, distanceRadius, urgentOnly]);
+
+    // Sorting
+    result.sort((a, b) => {
+      if (sortBy === 'Distance: Nearest') {
+        return (a.distanceNum || 99) - (b.distanceNum || 99);
+      }
+      if (sortBy === 'Price: Low to High') {
+        return a.rescuePrice - b.rescuePrice;
+      }
+      if (sortBy === 'Price: High to Low') {
+        return b.rescuePrice - a.rescuePrice;
+      }
+      if (sortBy === 'Highest Discount') {
+        return (b.discountPercent || 0) - (a.discountPercent || 0);
+      }
+      if (sortBy === 'Portions Left: Low to High') {
+        return a.portionsLeft - b.portionsLeft;
+      }
+      return 0;
+    });
+
+    return result;
+  }, [
+    mealsWithDistance,
+    searchQuery,
+    selectedDietary,
+    selectedCategory,
+    priceRange,
+    distanceRadius,
+    availableNowOnly,
+    urgentOnly,
+    sortBy
+  ]);
+
+  const handleSelectMeal = (meal) => {
+    setActiveMealOnMap(meal);
+    setSelectedMealId(meal.id);
+    navigate('meal-detail', { mealId: meal.id });
+  };
 
   return (
     <div className="min-h-screen bg-[#fafcfb] pb-20">
       
-      {/* Top Header & Metrics */}
+      {/* Top Header */}
       <div className="bg-white border-b border-slate-100 py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             
-            {/* Live Status Pill */}
+            {/* Live Status Pill & Heading */}
             <div className="space-y-2">
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-200">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                  84 surplus meals available nearby right now
+                  {filteredMeals.length} Surplus Meals Available in Your Area
                 </span>
                 <span className="text-[11px] text-emerald-700 bg-emerald-100/60 font-medium px-2.5 py-0.5 rounded-full">
-                  Updated 2m ago
-                </span>
-                <span className="text-xs text-slate-500 hidden sm:inline">
-                  • Rescuing food from 38 local restaurants today
+                  Real-time OpenStreetMap Verified
                 </span>
               </div>
 
               <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-                Find Affordable Food <span className="text-emerald-700">Near You</span>
+                Rescue Fresh Surplus Food <span className="text-emerald-700">Near You</span>
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 max-w-xl">
-                Discover fresh surplus food from nearby hotels and restaurants at discounted prices. Quality-checked, packed sustainably, ready for quick pickup.
+                Hotels & restaurants list their closing fresh surplus at 50%–70% off. Find takeaway meals on OpenStreetMap and collect within the pickup window.
               </p>
             </div>
 
             {/* Impact Metric Cards */}
             <div className="flex items-center gap-3 shrink-0">
               <div className="bg-slate-50 border border-slate-200/80 rounded-2xl px-4 py-2.5 text-center min-w-[110px]">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Avg. Discount</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Avg Discount</span>
                 <span className="text-xl font-extrabold text-amber-600">62% OFF</span>
               </div>
               <div className="bg-slate-50 border border-slate-200/80 rounded-2xl px-4 py-2.5 text-center min-w-[110px]">
@@ -119,414 +174,503 @@ export default function ExploreFoodPage() {
 
           </div>
 
-          {/* Search bar */}
-          <div className="mt-6 bg-slate-50 p-2 sm:p-3 rounded-2xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-center">
-            <div className="lg:col-span-4 flex items-center gap-2.5 px-3 py-2 bg-white rounded-xl border border-slate-200">
-              <Search className="w-4 h-4 text-slate-400 shrink-0" />
-              <input
-                type="text"
-                placeholder="Thali, Biryani, Box..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-transparent text-xs sm:text-sm text-slate-800 focus:outline-hidden"
-              />
+          {/* Search bar & Live Location Bar */}
+          <div className="mt-6 bg-slate-50 p-2.5 sm:p-3.5 rounded-2xl border border-slate-200 space-y-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-center">
+              
+              {/* Search text */}
+              <div className="lg:col-span-5 flex items-center gap-2.5 px-3 py-2 bg-white rounded-xl border border-slate-200">
+                <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Search Thali, Biryani, Bakery Box, Restaurant..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-transparent text-xs sm:text-sm text-slate-800 focus:outline-hidden"
+                />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* City Location Preset */}
+              <div className="lg:col-span-4 flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-slate-200">
+                <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
+                <select
+                  value={userLocation.name}
+                  onChange={(e) => setUserCity(e.target.value)}
+                  className="w-full bg-transparent text-xs sm:text-sm text-slate-700 focus:outline-hidden font-medium cursor-pointer"
+                >
+                  {POPULAR_CITIES.map((city) => (
+                    <option key={city.name} value={city.name}>
+                      {city.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Live GPS Detection Button */}
+              <div className="lg:col-span-3">
+                <button
+                  onClick={detectLocation}
+                  disabled={isDetectingLocation}
+                  className={`w-full py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer ${
+                    userLocation.isLiveGps
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'bg-emerald-700 hover:bg-emerald-800 text-white'
+                  }`}
+                  title="Detect GPS coordinates using device location"
+                >
+                  {isDetectingLocation ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Detecting GPS...</span>
+                    </>
+                  ) : (
+                    <>
+                      <LocateFixed className="w-3.5 h-3.5" />
+                      <span>{userLocation.isLiveGps ? 'GPS Active (Re-detect)' : 'Use Live GPS'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
             </div>
 
-            <div className="lg:col-span-3 flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-slate-200">
-              <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
-              <select className="w-full bg-transparent text-xs sm:text-sm text-slate-700 focus:outline-hidden font-medium">
-                <option>Downtown & Campus Area</option>
-                <option>MG Road & City Centre</option>
-                <option>Vijay Nagar Hub</option>
-                <option>Civil Lines</option>
-              </select>
+            {/* Quick Filter & Location Status Strip */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/60 text-xs">
+              <div className="flex items-center gap-2 text-slate-600">
+                <span className="font-semibold text-slate-800">Current Anchor:</span>
+                <span className="bg-white px-2 py-0.5 rounded-md border border-slate-200 font-medium text-emerald-800">
+                  {userLocation.name} [{userLocation.coords[0].toFixed(3)}, {userLocation.coords[1].toFixed(3)}]
+                </span>
+                {userLocation.isLiveGps && (
+                  <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-blue-200">
+                    Live GPS
+                  </span>
+                )}
+              </div>
+
+              {/* View Switcher Controls */}
+              <div className="flex items-center bg-white rounded-xl border border-slate-200 p-0.5 shadow-xs">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                    viewMode === 'grid'
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>Cards</span>
+                </button>
+
+                <button
+                  onClick={() => setViewMode('split')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                    viewMode === 'split'
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <SplitSquareVertical className="w-3.5 h-3.5" />
+                  <span>Split Map</span>
+                </button>
+
+                <button
+                  onClick={() => setViewMode('map')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                    viewMode === 'map'
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <MapIcon className="w-3.5 h-3.5" />
+                  <span>OpenStreetMap View</span>
+                </button>
+              </div>
             </div>
 
-            <div className="lg:col-span-3 flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-slate-200">
-              <Clock className="w-4 h-4 text-amber-500 shrink-0" />
-              <select
-                value={pickupWindow}
-                onChange={(e) => setPickupWindow(e.target.value)}
-                className="w-full bg-transparent text-xs sm:text-sm text-slate-700 focus:outline-hidden font-medium"
-              >
-                <option>Pickup Tonight (6–9 PM)</option>
-                <option>Immediate (Next 1 hr)</option>
-                <option>Late Night (9–11 PM)</option>
-                <option>Tomorrow Morning</option>
-              </select>
-            </div>
-
-            <div className="lg:col-span-2">
-              <button className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-semibold py-2.5 px-4 rounded-xl text-xs sm:text-sm shadow-sm transition-all flex items-center justify-center gap-1.5">
-                <Search className="w-3.5 h-3.5" />
-                Search Food
-              </button>
-            </div>
           </div>
 
         </div>
       </div>
 
-      {/* Main Catalog with Sidebar Filters */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
-          {/* Left Sidebar Filters */}
-          <div className="lg:col-span-3 bg-white p-5 rounded-3xl border border-slate-200 space-y-6 shadow-xs sticky top-28">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4 text-emerald-700" />
-                Filters
-              </h3>
+      {/* Main Content Area */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+
+        {/* FULL MAP VIEW */}
+        {viewMode === 'map' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></div>
+                <h3 className="font-extrabold text-sm text-slate-900">
+                  Interactive OpenStreetMap Food Finder
+                </h3>
+                <span className="text-xs text-slate-500">
+                  • Click any price marker to view rescue parcel details & reserve
+                </span>
+              </div>
+
               <button
-                onClick={resetFilters}
-                className="text-xs text-slate-400 hover:text-emerald-700 font-medium flex items-center gap-1 transition-colors"
+                onClick={() => setViewMode('grid')}
+                className="text-xs font-bold text-emerald-700 hover:underline flex items-center gap-1"
               >
-                Clear Filters
+                Switch to Grid View →
               </button>
             </div>
 
-            {/* DIETARY PREFERENCE */}
-            <div className="space-y-2.5">
-              <label className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
-                Dietary Preference
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {['All Meals', 'Pure Veg', 'Non-Veg', 'Vegan'].map((diet) => (
-                  <button
-                    key={diet}
-                    onClick={() => setSelectedDietary(diet)}
-                    className={`py-1.5 px-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-                      selectedDietary === diet
-                        ? 'bg-emerald-700 text-white shadow-xs'
-                        : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/60'
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full ${
-                      diet === 'Pure Veg' ? 'bg-emerald-400' : diet === 'Non-Veg' ? 'bg-rose-400' : 'bg-slate-300'
-                    }`} />
-                    {diet}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* FOOD CATEGORY */}
-            <div className="space-y-2.5">
-              <label className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
-                Food Category
-              </label>
-              <div className="space-y-1.5 text-xs text-slate-600">
-                {[
-                  { name: 'Meals & Thalis', count: 24 },
-                  { name: 'Biryani & Rice', count: 18 },
-                  { name: 'Bowls & Curries', count: 15 },
-                  { name: 'Snacks & Starters', count: 12 },
-                  { name: 'Bakery & Breads', count: 9 },
-                  { name: 'Desserts', count: 6 }
-                ].map((cat) => (
-                  <button
-                    key={cat.name}
-                    onClick={() => setSelectedCategory(selectedCategory === cat.name ? '' : cat.name)}
-                    className={`w-full flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-slate-50 transition-colors ${
-                      selectedCategory === cat.name ? 'text-emerald-700 font-bold bg-emerald-50/70' : ''
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedCategory === cat.name}
-                        onChange={() => {}}
-                        className="rounded text-emerald-600 focus:ring-emerald-500"
-                      />
-                      {cat.name}
-                    </span>
-                    <span className="text-[11px] text-slate-400">{cat.count}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* PRICE RANGE */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Price Range
-                </label>
-                <span className="text-[11px] font-semibold text-emerald-700">Max ₹100</span>
-              </div>
-              <div className="space-y-1.5 text-xs text-slate-600">
-                {['All Prices', 'Under ₹60', '₹60 – ₹100 (Selected)', '₹100 – ₹150', 'Above ₹150'].map((price) => (
-                  <label key={price} className="flex items-center gap-2 cursor-pointer hover:text-slate-900 py-0.5">
-                    <input
-                      type="radio"
-                      name="price"
-                      checked={priceRange.includes(price.split(' ')[0]) || (price.includes('₹60') && priceRange === '₹60 – ₹100')}
-                      onChange={() => setPriceRange(price)}
-                      className="text-emerald-600 focus:ring-emerald-500"
-                    />
-                    <span>{price}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* DISTANCE RADIUS */}
-            <div className="space-y-2.5">
-              <label className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
-                Distance Radius
-              </label>
-              <div className="grid grid-cols-2 gap-1.5 text-xs">
-                {['< 1 km', 'Within 3 km', 'Within 5 km', 'Any Distance'].map((dist) => (
-                  <button
-                    key={dist}
-                    onClick={() => setDistanceRadius(dist)}
-                    className={`py-1.5 px-2 rounded-xl font-semibold transition-all ${
-                      distanceRadius === dist
-                        ? 'bg-emerald-700 text-white shadow-xs'
-                        : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/60'
-                    }`}
-                  >
-                    {dist}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* PICKUP WINDOW */}
-            <div className="space-y-2.5">
-              <label className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
-                Pickup Window
-              </label>
-              <div className="space-y-1.5 text-xs text-slate-600">
-                {['Immediate (Next 1 hr)', 'Tonight (6 PM – 9 PM)', 'Late Night (9 PM – 11 PM)', 'Tomorrow Morning'].map((win) => (
-                  <label key={win} className="flex items-center gap-2 cursor-pointer hover:text-slate-900 py-0.5">
-                    <input
-                      type="checkbox"
-                      checked={pickupWindow === win}
-                      onChange={() => setPickupWindow(win)}
-                      className="rounded text-emerald-600 focus:ring-emerald-500"
-                    />
-                    <span>{win}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* TOGGLES */}
-            <div className="pt-4 border-t border-slate-100 space-y-2 text-xs">
-              <label className="flex items-center justify-between cursor-pointer">
-                <span className="font-semibold text-slate-800">Available Now</span>
-                <input
-                  type="checkbox"
-                  checked={availableNowOnly}
-                  onChange={(e) => setAvailableNowOnly(e.target.checked)}
-                  className="rounded text-emerald-600 focus:ring-emerald-500"
-                />
-              </label>
-              <label className="flex items-center justify-between cursor-pointer">
-                <span className="font-semibold text-slate-800">Urgent (&lt; 5 Left)</span>
-                <input
-                  type="checkbox"
-                  checked={urgentOnly}
-                  onChange={(e) => setUrgentOnly(e.target.checked)}
-                  className="rounded text-emerald-600 focus:ring-emerald-500"
-                />
-              </label>
-            </div>
-
+            <OpenStreetMap
+              center={userLocation.coords}
+              zoom={14}
+              meals={filteredMeals}
+              selectedMealId={activeMealOnMap?.id}
+              onSelectMeal={handleSelectMeal}
+              userCoords={userLocation.coords}
+              height="580px"
+              className="shadow-md"
+            />
           </div>
+        )}
 
-          {/* Right Main Grid */}
-          <div className="lg:col-span-9 space-y-6">
-            
-            {/* Top Bar: Active Tags & Sort */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-sm font-extrabold text-slate-900">
-                  Surplus Meals in Downtown
-                </h3>
-                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  Showing {filteredMeals.length} items
+        {/* SPLIT VIEW (Map Top/Side + Cards) */}
+        {viewMode === 'split' && (
+          <div className="space-y-6">
+            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between mb-2 px-1">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Compass className="w-3.5 h-3.5 text-emerald-600" />
+                  Live OpenStreetMap Radar ({filteredMeals.length} listings in range)
                 </span>
+                <span className="text-[11px] text-slate-500">
+                  Blue beacon = Your Location • Green pins = Available Food
+                </span>
+              </div>
+              <OpenStreetMap
+                center={userLocation.coords}
+                zoom={14}
+                meals={filteredMeals}
+                selectedMealId={activeMealOnMap?.id}
+                onSelectMeal={handleSelectMeal}
+                userCoords={userLocation.coords}
+                height="340px"
+              />
+            </div>
+          </div>
+        )}
 
-                {/* Active Filter Pills */}
-                <div className="flex items-center gap-1.5 flex-wrap ml-2">
-                  <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full flex items-center gap-1 font-medium">
-                    Downtown & Campus <X className="w-3 h-3 cursor-pointer" />
+        {/* CATALOG WITH SIDEBAR FILTERS (Visible in 'grid' and 'split' modes) */}
+        {viewMode !== 'map' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mt-6">
+            
+            {/* Left Sidebar Filters */}
+            <div className="lg:col-span-3 bg-white p-5 rounded-3xl border border-slate-200 space-y-6 shadow-xs sticky top-28">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                  <SlidersHorizontal className="w-4 h-4 text-emerald-700" />
+                  Filters
+                </h3>
+                <button
+                  onClick={resetFilters}
+                  className="text-xs text-slate-400 hover:text-emerald-700 font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  Reset All
+                </button>
+              </div>
+
+              {/* DISTANCE RADIUS (OpenStreetMap GPS powered) */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
+                    Distance Radius
+                  </label>
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
+                    OSM GPS
                   </span>
-                  <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full flex items-center gap-1 font-medium">
-                    Vegetarian <X className="w-3 h-3 cursor-pointer" onClick={() => setSelectedDietary('All Meals')} />
-                  </span>
-                  <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full flex items-center gap-1 font-medium">
-                    Under ₹100 <X className="w-3 h-3 cursor-pointer" onClick={() => setPriceRange('All')} />
-                  </span>
-                  <button onClick={resetFilters} className="text-xs text-emerald-700 font-bold hover:underline ml-1">
-                    Reset
-                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {['< 1 km', 'Within 3 km', 'Within 5 km', 'Any Distance'].map((dist) => (
+                    <button
+                      key={dist}
+                      onClick={() => setDistanceRadius(dist)}
+                      className={`py-1.5 px-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                        distanceRadius === dist
+                          ? 'bg-emerald-700 text-white shadow-xs'
+                          : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/60'
+                      }`}
+                    >
+                      {dist}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* Sort dropdown */}
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-slate-400">Sort by:</span>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 text-slate-800 font-semibold rounded-lg px-2.5 py-1.5 focus:outline-hidden"
-                >
-                  <option>Recommended</option>
-                  <option>Price: Low to High</option>
-                  <option>Distance: Nearest</option>
-                  <option>Highest Discount</option>
-                  <option>Expiring Soon</option>
-                </select>
+              {/* DIETARY PREFERENCE */}
+              <div className="space-y-2.5">
+                <label className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
+                  Dietary Preference
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {['All Meals', 'Pure Veg', 'Non-Veg', 'Vegan'].map((diet) => (
+                    <button
+                      key={diet}
+                      onClick={() => setSelectedDietary(diet)}
+                      className={`py-1.5 px-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                        selectedDietary === diet
+                          ? 'bg-emerald-700 text-white shadow-xs'
+                          : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/60'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${
+                        diet === 'Pure Veg' ? 'bg-emerald-400' : diet === 'Non-Veg' ? 'bg-rose-400' : 'bg-slate-300'
+                      }`} />
+                      {diet}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {/* PRICE FILTER */}
+              <div className="space-y-2.5">
+                <label className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
+                  Max Rescue Price
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {['All', 'Under ₹60', '₹60 – ₹100', 'Above ₹100'].map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setPriceRange(p)}
+                      className={`py-1.5 px-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                        priceRange === p
+                          ? 'bg-emerald-700 text-white shadow-xs'
+                          : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/60'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* AVAILABILITY TOGGLES */}
+              <div className="space-y-2 pt-2 border-t border-slate-100 text-xs">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="font-semibold text-slate-800">Only Available Now</span>
+                  <input
+                    type="checkbox"
+                    checked={availableNowOnly}
+                    onChange={(e) => setAvailableNowOnly(e.target.checked)}
+                    className="rounded text-emerald-600 focus:ring-emerald-500"
+                  />
+                </label>
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="font-semibold text-slate-800">Urgent (&lt; 3 Portions Left)</span>
+                  <input
+                    type="checkbox"
+                    checked={urgentOnly}
+                    onChange={(e) => setUrgentOnly(e.target.checked)}
+                    className="rounded text-emerald-600 focus:ring-emerald-500"
+                  />
+                </label>
+              </div>
+
             </div>
 
-            {/* Meals Grid (3 columns matching screenshot) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredMeals.map((meal) => (
-                <div
-                  key={meal.id}
-                  onClick={() => navigate('meal-detail', { mealId: meal.id })}
-                  className="group bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-xl hover:border-emerald-300 transition-all duration-300 flex flex-col cursor-pointer"
-                >
-                  {/* Image */}
-                  <div className="relative aspect-4/3 overflow-hidden bg-slate-100">
-                    <img
-                      src={meal.image}
-                      alt={meal.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
+            {/* Right Main Grid */}
+            <div className="lg:col-span-9 space-y-6">
+              
+              {/* Top Bar: Active Tags & Sort */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm font-extrabold text-slate-900">
+                    Surplus Meals
+                  </h3>
+                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {filteredMeals.length} found
+                  </span>
 
-                    {/* Badge top left */}
-                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-                      {meal.badge && (
-                        <span className="bg-amber-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs">
-                          {meal.badge}
-                        </span>
-                      )}
-                      <span className="bg-emerald-700 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs">
-                        -{meal.discountPercent}% OFF
+                  {/* Active Filter Pills */}
+                  <div className="flex items-center gap-1.5 flex-wrap ml-2">
+                    {distanceRadius !== 'Any Distance' && (
+                      <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-0.5 rounded-full flex items-center gap-1 font-medium">
+                        {distanceRadius} <X className="w-3 h-3 cursor-pointer" onClick={() => setDistanceRadius('Any Distance')} />
                       </span>
-                    </div>
-
-                    {/* Timing bottom badge */}
-                    <div className="absolute bottom-2.5 right-2.5 bg-slate-900/80 backdrop-blur-xs text-white text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-amber-400" />
-                      <span>{meal.pickupWindowStart || '7:30'} – {meal.pickupWindowEnd || '9:00'} PM</span>
-                    </div>
+                    )}
+                    {selectedDietary !== 'All Meals' && (
+                      <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-0.5 rounded-full flex items-center gap-1 font-medium">
+                        {selectedDietary} <X className="w-3 h-3 cursor-pointer" onClick={() => setSelectedDietary('All Meals')} />
+                      </span>
+                    )}
+                    {priceRange !== 'All' && (
+                      <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-0.5 rounded-full flex items-center gap-1 font-medium">
+                        {priceRange} <X className="w-3 h-3 cursor-pointer" onClick={() => setPriceRange('All')} />
+                      </span>
+                    )}
                   </div>
+                </div>
 
-                  {/* Body */}
-                  <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                    <div>
-                      <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
-                        <span className="truncate">{meal.restaurant}</span>
-                        <div className="flex items-center gap-1 text-slate-700 font-bold shrink-0">
-                          <span className="text-amber-500">★</span>
-                          <span>{meal.rating}</span>
-                          <span className="text-slate-400 font-normal">({meal.reviewsCount})</span>
+                {/* Sort dropdown */}
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-slate-400">Sort:</span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 text-slate-800 font-semibold rounded-lg px-2.5 py-1.5 focus:outline-hidden cursor-pointer"
+                  >
+                    <option>Distance: Nearest</option>
+                    <option>Price: Low to High</option>
+                    <option>Price: High to Low</option>
+                    <option>Highest Discount</option>
+                    <option>Portions Left: Low to High</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Meals Grid */}
+              {filteredMeals.length === 0 ? (
+                <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+                    <Compass className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900">No surplus food listings match your filters</h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Try expanding your distance radius or changing dietary preference. Hotels typically list new surplus batches between 5 PM and 9 PM.
+                  </p>
+                  <button
+                    onClick={resetFilters}
+                    className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition cursor-pointer"
+                  >
+                    Reset All Filters
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredMeals.map((meal) => (
+                    <div
+                      key={meal.id}
+                      onClick={() => handleSelectMeal(meal)}
+                      className="group bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-xl hover:border-emerald-300 transition-all duration-300 flex flex-col cursor-pointer"
+                    >
+                      {/* Image */}
+                      <div className="relative aspect-4/3 overflow-hidden bg-slate-100">
+                        <img
+                          src={meal.image}
+                          alt={meal.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+
+                        {/* Badge top left */}
+                        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
+                          {meal.portionsLeft === 0 ? (
+                            <span className="bg-rose-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs">
+                              SOLD OUT
+                            </span>
+                          ) : (
+                            <span className="bg-amber-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs">
+                              {meal.portionsLeft} left
+                            </span>
+                          )}
+                          <span className="bg-emerald-700 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs">
+                            -{meal.discountPercent}% OFF
+                          </span>
+                        </div>
+
+                        {/* Timing bottom badge */}
+                        <div className="absolute bottom-2.5 right-2.5 bg-slate-900/80 backdrop-blur-xs text-white text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-amber-400" />
+                          <span>{meal.pickupWindowStart || '6:00'} – {meal.pickupWindowEnd || '8:00'} PM</span>
                         </div>
                       </div>
 
-                      <h3 className="text-sm font-bold text-slate-900 mt-1 line-clamp-1 group-hover:text-emerald-700 transition-colors">
-                        {meal.name}
-                      </h3>
+                      {/* Body */}
+                      <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                        <div>
+                          <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                            <span className="truncate max-w-[140px]">{meal.restaurant}</span>
+                            <div className="flex items-center gap-1 text-slate-700 font-bold shrink-0">
+                              <span className="text-amber-500">★</span>
+                              <span>{meal.rating}</span>
+                              <span className="text-slate-400 font-normal">({meal.reviewsCount})</span>
+                            </div>
+                          </div>
 
-                      <p className="text-xs text-slate-500 line-clamp-2 mt-1 leading-relaxed">
-                        {meal.description}
-                      </p>
+                          <h3 className="text-sm font-bold text-slate-900 mt-1 line-clamp-1 group-hover:text-emerald-700 transition-colors">
+                            {meal.name}
+                          </h3>
 
-                      <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-2">
-                        <span className="flex items-center gap-1">
-                          <Navigation className="w-3 h-3 text-emerald-600" />
-                          {meal.distance}
-                        </span>
-                        <span>•</span>
-                        <span className="text-emerald-700 font-medium">{meal.tags[0] || 'Eco-packaging'}</span>
+                          <p className="text-xs text-slate-500 line-clamp-2 mt-1 leading-relaxed">
+                            {meal.description}
+                          </p>
+
+                          <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-2">
+                            <span className="flex items-center gap-1 font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded">
+                              <Navigation className="w-3 h-3 text-emerald-600" />
+                              {meal.distance}
+                            </span>
+                            <span>•</span>
+                            <span className="text-slate-600 font-medium truncate">{meal.category}</span>
+                          </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                          <div>
+                            <div className="text-[10px] text-slate-400 line-through">₹{meal.originalPrice}</div>
+                            <div className="text-lg font-extrabold text-slate-900">₹{meal.rescuePrice}</div>
+                          </div>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectMeal(meal);
+                            }}
+                            disabled={meal.portionsLeft === 0}
+                            className={`text-xs font-semibold px-3.5 py-2 rounded-xl shadow-xs transition-colors ${
+                              meal.portionsLeft === 0
+                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                : 'bg-emerald-700 hover:bg-emerald-800 text-white cursor-pointer'
+                            }`}
+                          >
+                            {meal.portionsLeft === 0 ? 'Sold Out' : 'Reserve Meal'}
+                          </button>
+                        </div>
                       </div>
                     </div>
-
-                    {/* Footer */}
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                      <div>
-                        <div className="text-[10px] text-slate-400 line-through">₹{meal.originalPrice}</div>
-                        <div className="text-lg font-extrabold text-slate-900">₹{meal.rescuePrice}</div>
-                      </div>
-
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate('meal-detail', { mealId: meal.id });
-                        }}
-                        className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-xs transition-colors"
-                      >
-                        Book Now
-                      </button>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
 
-            {/* No match info alert */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
-              <div className="flex items-center gap-2.5">
-                <span className="text-base">ℹ️</span>
-                <span>No food matching selected time filter? Try changing your filters or check again later when kitchens post their closing surplus.</span>
-              </div>
-              <button onClick={resetFilters} className="text-emerald-700 font-bold hover:underline whitespace-nowrap">
-                Clear Filters
-              </button>
-            </div>
+              {/* Carbon emissions impact banner */}
+              <div className="mt-8 bg-emerald-800 text-white rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-md">
+                <div className="space-y-2">
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-700 text-emerald-200 text-xs font-semibold px-3 py-1 rounded-full">
+                    <Leaf className="w-3.5 h-3.5" /> Environmental & Budget Impact
+                  </span>
+                  <h3 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                    Every rescued meal cuts food waste & helps someone eat well
+                  </h3>
+                  <p className="text-xs sm:text-sm text-emerald-100/80 max-w-xl font-normal">
+                    Real-time platform linking commercial hotel kitchens with students, workers, and food conscious citizens.
+                  </p>
+                </div>
 
-            {/* Pagination */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 text-xs text-slate-500">
-              <p>Showing <strong>{filteredMeals.length}</strong> of <strong>24</strong> surplus parcels nearby</p>
-              
-              <div className="flex items-center gap-3">
                 <button
-                  onClick={() => alert('All remaining 16 meals loaded!')}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                  onClick={() => setViewMode('map')}
+                  className="bg-white text-emerald-900 hover:bg-emerald-50 font-bold px-5 py-3 rounded-xl shadow-sm transition-colors text-xs whitespace-nowrap flex items-center gap-2 cursor-pointer"
                 >
-                  Load More Meals (16 Remaining)
+                  <MapIcon className="w-4 h-4 text-emerald-700" />
+                  View All on OpenStreetMap
                 </button>
-                <div className="flex items-center gap-1">
-                  <button className="w-8 h-8 rounded-lg bg-emerald-700 text-white font-bold">1</button>
-                  <button className="w-8 h-8 rounded-lg hover:bg-slate-100 font-semibold text-slate-600">2</button>
-                  <button className="w-8 h-8 rounded-lg hover:bg-slate-100 font-semibold text-slate-600">3</button>
-                </div>
-              </div>
-            </div>
-
-            {/* Carbon emissions impact banner */}
-            <div className="mt-8 bg-emerald-800 text-white rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-md">
-              <div className="space-y-2">
-                <span className="inline-flex items-center gap-1.5 bg-emerald-700 text-emerald-200 text-xs font-semibold px-3 py-1 rounded-full">
-                  <Leaf className="w-3.5 h-3.5" /> Environmental Impact
-                </span>
-                <h3 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                  You helped prevent 3,420 kg of carbon emissions this month
-                </h3>
-                <p className="text-xs sm:text-sm text-emerald-100/80 max-w-xl font-normal">
-                  Every meal booked on Foodie reduces organic waste in landfills and puts tasty chef-prepared dishes to good use.
-                </p>
               </div>
 
-              <button
-                onClick={() => navigate('admin-reports')}
-                className="bg-white text-emerald-900 hover:bg-emerald-50 font-bold px-5 py-3 rounded-xl shadow-sm transition-colors text-xs whitespace-nowrap flex items-center gap-2"
-              >
-                View Live Impact Map
-                <ArrowRight className="w-4 h-4" />
-              </button>
             </div>
 
           </div>
+        )}
 
-        </div>
       </div>
 
     </div>

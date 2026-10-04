@@ -8,21 +8,75 @@ import {
   INITIAL_TRANSACTIONS,
   INITIAL_PLATFORM_SETTINGS
 } from '../data/mockData.js';
+import {
+  calculateDistanceKm,
+  formatDistance,
+  DEFAULT_LOCATION,
+  POPULAR_CITIES
+} from '../lib/geoUtils.js';
+import {
+  isSupabaseConfigured,
+  supabase,
+  dbGetMeals,
+  dbInsertMeal,
+  dbUpdateMeal,
+  dbGetBookings,
+  dbCreateBooking,
+  dbUpdateBookingStatus,
+  dbGetHotelVerifications,
+  dbUpdateHotelVerification,
+  dbGetUsers,
+  dbUpdateUser,
+  dbGetSupportTickets,
+  dbUpdateSupportTicket,
+  subscribeToTable,
+  authSignIn,
+  authSignUp,
+  authSignOut
+} from '../lib/supabaseClient.js';
 
 const AppContext = createContext();
 
 export function AppProvider({ children }) {
   // Current Role: 'diner' | 'partner' | 'admin'
   const [currentRole, setCurrentRole] = useState(() => {
-    return localStorage.getItem('foodie_role') || 'diner';
+    return 'diner';
   });
+
+  // Supabase Auth User State
+  const [authUser, setAuthUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('foodie_auth_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const isLoggedIn = Boolean(authUser);
+
+  // Sync authUser to localStorage
+  useEffect(() => {
+    if (authUser) {
+      localStorage.setItem('foodie_auth_user', JSON.stringify(authUser));
+    } else {
+      localStorage.removeItem('foodie_auth_user');
+    }
+  }, [authUser]);
 
   // Navigation route:
   // Diner: 'home', 'explore', 'meal-detail', 'booking-confirmed', 'dashboard', 'profile', 'login', 'signup', 'forgot-password', 'reset-password', 'system-states'
   // Partner: 'partner-bookings', 'partner-booking-detail', 'partner-add-food', 'partner-analytics', 'partner-listings'
   // Admin: 'admin-bookings', 'admin-listings', 'admin-hotels', 'admin-users', 'admin-payments', 'admin-reports', 'admin-complaints', 'admin-settings'
   const [currentView, setCurrentView] = useState(() => {
-    return localStorage.getItem('foodie_view') || 'home';
+    // Clear any stuck non-home view from previous sessions
+    try {
+      localStorage.removeItem('foodie_view');
+      localStorage.removeItem('foodie_role');
+    } catch {
+      // Ignore if localStorage unavailable
+    }
+    return 'home';
   });
 
   // Selected item contexts
@@ -89,6 +143,80 @@ export function AppProvider({ children }) {
     }
   });
 
+  // User Geolocation & OpenStreetMap state
+  const [userLocation, setUserLocation] = useState(() => {
+    try {
+      const saved = localStorage.getItem('foodie_user_location');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {
+      coords: [22.7245, 75.8640],
+      name: 'Indore Central (Downtown & Campus)',
+      isLiveGps: false
+    };
+  });
+
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+
+  // Detect user live GPS location
+  const detectLocation = () => {
+    if (!navigator.geolocation) {
+      showToast('Geolocation is not supported by your browser', 'error');
+      return;
+    }
+    setIsDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const newLoc = {
+          coords: [Math.round(latitude * 10000) / 10000, Math.round(longitude * 10000) / 10000],
+          name: 'Current Live GPS Location',
+          isLiveGps: true
+        };
+        setUserLocation(newLoc);
+        localStorage.setItem('foodie_user_location', JSON.stringify(newLoc));
+        setIsDetectingLocation(false);
+        showToast('Live GPS detected! Distances and OpenStreetMap updated.', 'success');
+      },
+      (err) => {
+        setIsDetectingLocation(false);
+        showToast('GPS permission denied or timed out. Using Indore Central default.', 'info');
+      },
+      { timeout: 8000, enableHighAccuracy: true }
+    );
+  };
+
+  // Change city preset
+  const setUserCity = (cityName) => {
+    if (!cityName) return;
+    const target = String(cityName).toLowerCase().trim();
+    const found = POPULAR_CITIES.find(c => (c.name || '').toLowerCase().includes(target)) || POPULAR_CITIES[0];
+    const newLoc = {
+      coords: [found.lat, found.lng],
+      name: found.name,
+      isLiveGps: false
+    };
+    setUserLocation(newLoc);
+    localStorage.setItem('foodie_user_location', JSON.stringify(newLoc));
+    showToast(`Location set to ${found.name}`, 'info');
+  };
+
+  // Dynamically compute real distances to all meals based on userLocation
+  const mealsWithDistance = meals.map(m => {
+    const mLat = Number(m.lat ?? m.latitude ?? 22.7196);
+    const mLng = Number(m.lng ?? m.longitude ?? 75.8577);
+    const uCoords = userLocation?.coords || [22.7196, 75.8577];
+    const distNum = calculateDistanceKm(uCoords[0], uCoords[1], mLat, mLng);
+    const restName = m.restaurant || m.restaurantName || m.restaurant_name || 'Commercial Kitchen';
+    return {
+      ...m,
+      restaurant: restName,
+      restaurantName: restName,
+      distanceNum: distNum,
+      distance: formatDistance(distNum)
+    };
+  });
+
   // Global Toast
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -99,15 +227,7 @@ export function AppProvider({ children }) {
     }, 4000);
   };
 
-  // Sync to localStorage
-  useEffect(() => {
-    localStorage.setItem('foodie_role', currentRole);
-  }, [currentRole]);
-
-  useEffect(() => {
-    localStorage.setItem('foodie_view', currentView);
-  }, [currentView]);
-
+  // Sync data to localStorage
   useEffect(() => {
     localStorage.setItem('foodie_meals', JSON.stringify(meals));
   }, [meals]);
@@ -132,6 +252,108 @@ export function AppProvider({ children }) {
     localStorage.setItem('foodie_settings', JSON.stringify(platformSettings));
   }, [platformSettings]);
 
+  // Load and subscribe to Supabase when configured
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    let isMounted = true;
+    async function loadFromSupabase() {
+      try {
+        const [remoteMeals, remoteBookings, remoteHotels, remoteUsers, remoteTickets] = await Promise.all([
+          dbGetMeals(meals),
+          dbGetBookings(bookings),
+          dbGetHotelVerifications(hotelVerifications),
+          dbGetUsers(users),
+          dbGetSupportTickets(supportTickets)
+        ]);
+
+        if (isMounted) {
+          if (remoteMeals && remoteMeals.length > 0) setMeals(remoteMeals);
+          if (remoteBookings && remoteBookings.length > 0) setBookings(remoteBookings);
+          if (remoteHotels && remoteHotels.length > 0) setHotelVerifications(remoteHotels);
+          if (remoteUsers && remoteUsers.length > 0) setUsers(remoteUsers);
+          if (remoteTickets && remoteTickets.length > 0) setSupportTickets(remoteTickets);
+        }
+      } catch (err) {
+        console.warn('Initial Supabase load error:', err);
+      }
+    }
+
+    loadFromSupabase();
+
+    // Setup live real-time synchronization
+    const unsubBookings = subscribeToTable(
+      'bookings',
+      (newBooking) => {
+        setBookings(prev => {
+          if (prev.some(b => b.id === newBooking.id)) return prev;
+          return [newBooking, ...prev];
+        });
+      },
+      (updatedBooking) => {
+        setBookings(prev => prev.map(b => b.id === updatedBooking.id ? { ...b, ...updatedBooking } : b));
+      }
+    );
+
+    const unsubMeals = subscribeToTable(
+      'meals',
+      (newMeal) => {
+        setMeals(prev => {
+          if (prev.some(m => m.id === newMeal.id)) return prev;
+          return [newMeal, ...prev];
+        });
+      },
+      (updatedMeal) => {
+        setMeals(prev => prev.map(m => m.id === updatedMeal.id ? { ...m, ...updatedMeal } : m));
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      unsubBookings();
+      unsubMeals();
+    };
+  }, []);
+
+  // Supabase Auth session listener
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase?.auth) return;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setAuthUser(session.user);
+        const meta = session.user.user_metadata || {};
+        if (meta.full_name) {
+          setDinerProfile(prev => ({
+            ...prev,
+            name: meta.full_name,
+            email: session.user.email || prev.email
+          }));
+        }
+      }
+    }).catch(err => console.warn('Supabase session load:', err));
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setAuthUser(session.user);
+        const meta = session.user.user_metadata || {};
+        if (meta.full_name) {
+          setDinerProfile(prev => ({
+            ...prev,
+            name: meta.full_name,
+            email: session.user.email || prev.email
+          }));
+        }
+      } else {
+        setAuthUser(null);
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
+
   // Navigate helper
   const navigate = (view, extraParams = {}) => {
     if (extraParams.mealId) setSelectedMealId(extraParams.mealId);
@@ -153,6 +375,34 @@ export function AppProvider({ children }) {
     
     setCurrentView(view);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Perform login
+  const performLogin = (userData, role = 'diner') => {
+    setAuthUser(userData);
+    setCurrentRole(role);
+    if (userData?.user_metadata?.full_name || userData?.name) {
+      setDinerProfile(prev => ({
+        ...prev,
+        name: userData?.user_metadata?.full_name || userData?.name || prev.name,
+        email: userData?.email || prev.email,
+      }));
+    }
+  };
+
+  // Perform logout
+  const performLogout = async () => {
+    try {
+      if (isSupabaseConfigured) {
+        await authSignOut();
+      }
+    } catch (err) {
+      console.warn('Sign out error:', err);
+    }
+    setAuthUser(null);
+    setCurrentRole('diner');
+    setCurrentView('home');
+    showToast('Signed out successfully', 'info');
   };
 
   // Switch role and go to default landing for that role
@@ -228,6 +478,12 @@ export function AppProvider({ children }) {
     setBookings(prev => [newBooking, ...prev]);
     setSelectedBookingId(bookingId);
 
+    // Direct write to Supabase
+    dbCreateBooking(newBooking).catch(err => console.warn('Supabase booking save:', err));
+    dbUpdateMeal(meal.id, {
+      portion_count: Math.max(0, (meal.portionsLeft || 1) - portions)
+    }).catch(err => console.warn('Supabase meal update:', err));
+
     // Add to transactions
     const newTxn = {
       txnId: `TXN-${Math.floor(984000 + Math.random() * 999)}`,
@@ -254,15 +510,60 @@ export function AppProvider({ children }) {
     navigate('booking-confirmed', { bookingId });
   };
 
-  // Actions: Cancel booking
+  // Actions: Cancel booking & release reserved portions back to availability
   const cancelBooking = (bookingId) => {
+    const booking = bookings.find(b => b.id === bookingId);
+    if (booking && booking.mealId) {
+      const restoredPortions = booking.portions || 1;
+      setMeals(prev => prev.map(m => {
+        if (m.id === booking.mealId) {
+          const newLeft = m.portionsLeft + restoredPortions;
+          return {
+            ...m,
+            portionsLeft: newLeft,
+            soldCount: Math.max(0, (m.soldCount || 0) - restoredPortions)
+          };
+        }
+        return m;
+      }));
+    }
+
     setBookings(prev => prev.map(b => {
       if (b.id === bookingId) {
         return { ...b, status: 'Cancelled', lifecycleStep: 0 };
       }
       return b;
     }));
-    showToast(`Booking #${bookingId} cancelled. Refund credited to original source.`, 'info');
+    dbUpdateBookingStatus(bookingId, 'Cancelled').catch(err => console.warn('Supabase cancel error:', err));
+    showToast(`Reservation #${bookingId} cancelled. ${booking?.portions || 1} portions released back to availability.`, 'info');
+  };
+
+  // Actions: Auto-expire uncollected reservation & release portions
+  const expireBooking = (bookingId) => {
+    const booking = bookings.find(b => b.id === bookingId);
+    if (booking && booking.mealId) {
+      const restoredPortions = booking.portions || 1;
+      setMeals(prev => prev.map(m => {
+        if (m.id === booking.mealId) {
+          const newLeft = m.portionsLeft + restoredPortions;
+          return {
+            ...m,
+            portionsLeft: newLeft,
+            soldCount: Math.max(0, (m.soldCount || 0) - restoredPortions)
+          };
+        }
+        return m;
+      }));
+    }
+
+    setBookings(prev => prev.map(b => {
+      if (b.id === bookingId) {
+        return { ...b, status: 'Expired', lifecycleStep: 0 };
+      }
+      return b;
+    }));
+    dbUpdateBookingStatus(bookingId, 'Expired').catch(err => console.warn('Supabase expire error:', err));
+    showToast(`Reservation #${bookingId} expired. Portions made available again.`, 'warning');
   };
 
   // Partner Actions: Token Handover / Pickup complete
@@ -273,6 +574,7 @@ export function AppProvider({ children }) {
       }
       return b;
     }));
+    dbUpdateBookingStatus(bookingId, 'Completed').catch(err => console.warn('Supabase handover error:', err));
     showToast(`✅ Food handed over! Escrow payout of booking #${bookingId} released.`, 'success');
   };
 
@@ -283,6 +585,7 @@ export function AppProvider({ children }) {
       }
       return b;
     }));
+    dbUpdateBookingStatus(bookingId, 'Ready for Pickup').catch(err => console.warn('Supabase ready error:', err));
     showToast(`Meal marked Ready for Pickup! Diner notified via WhatsApp & SMS.`, 'success');
   };
 
@@ -295,8 +598,10 @@ export function AppProvider({ children }) {
       category: listingData.category || 'Meals & Thalis',
       dietary: listingData.dietary || 'Pure Veg',
       restaurant: listingData.restaurant || 'Sharma Restaurant & Banquets',
-      restaurantAddress: 'Plot 42, University Commercial Complex, MG Road, Indore',
+      restaurantAddress: listingData.restaurantAddress || 'Plot 42, University Commercial Complex, MG Road, Indore',
       pickupCounter: listingData.pickupCounter || 'Counter 2 (Takeaway Desk)',
+      lat: Number(listingData.lat || 22.7245),
+      lng: Number(listingData.lng || 75.8640),
       distance: '1.8 km',
       distanceNum: 1.8,
       area: 'Downtown & Campus Area',
@@ -332,6 +637,7 @@ export function AppProvider({ children }) {
     };
 
     setMeals(prev => [newMeal, ...prev]);
+    dbInsertMeal(newMeal).catch(err => console.warn('Supabase meal insert:', err));
     showToast('✨ New surplus batch published successfully! Live on diner discovery feed.', 'success');
     navigate('partner-bookings');
   };
@@ -344,6 +650,7 @@ export function AppProvider({ children }) {
       }
       return h;
     }));
+    dbUpdateHotelVerification(appId, { status: 'Verified' }).catch(err => console.warn('Supabase hotel approve:', err));
     showToast(`Hotel #${appId} approved & FSSAI verified! Listing privileges enabled.`, 'success');
   };
 
@@ -354,6 +661,7 @@ export function AppProvider({ children }) {
       }
       return h;
     }));
+    dbUpdateHotelVerification(appId, { status: 'Rejected' }).catch(err => console.warn('Supabase hotel reject:', err));
     showToast(`Hotel application #${appId} rejected.`, 'info');
   };
 
@@ -365,12 +673,14 @@ export function AppProvider({ children }) {
       }
       return t;
     }));
+    dbUpdateSupportTicket(ticketId, { status: 'Resolved' }).catch(err => console.warn('Supabase ticket resolve:', err));
     showToast(refund ? `Ticket #${ticketId} resolved with ₹89 refund processed to diner.` : `Ticket #${ticketId} marked as resolved.`, 'success');
   };
 
   // Meal Management
   const updateMealStatus = (mealId, newStatus) => {
     setMeals(prev => prev.map(m => m.id === mealId ? { ...m, status: newStatus } : m));
+    dbUpdateMeal(mealId, { status: newStatus }).catch(err => console.warn('Supabase meal status:', err));
     showToast(`Meal status updated to ${newStatus}.`, 'info');
   };
 
@@ -381,6 +691,7 @@ export function AppProvider({ children }) {
 
   const updateHotelVerification = (hotelId, status) => {
     setHotelVerifications(prev => prev.map(h => h.id === hotelId ? { ...h, status } : h));
+    dbUpdateHotelVerification(hotelId, { status }).catch(err => console.warn('Supabase hotel update:', err));
     showToast(`Hotel verification updated to ${status}.`, 'info');
   };
 
@@ -391,17 +702,25 @@ export function AppProvider({ children }) {
 
   // Admin Actions: Suspend User
   const toggleUserSuspension = (userId) => {
+    let nextStatus = 'suspended';
     setUsers(prev => prev.map(u => {
       if (u.id === userId) {
-        const nextStatus = u.status === 'Active' || u.status === 'active' ? 'suspended' : 'active';
+        nextStatus = u.status === 'Active' || u.status === 'active' ? 'suspended' : 'active';
         return { ...u, status: nextStatus };
       }
       return u;
     }));
+    dbUpdateUser(userId, { status: nextStatus }).catch(err => console.warn('Supabase user toggle:', err));
     showToast(`User status updated.`, 'info');
   };
 
   const value = {
+    isSupabaseConfigured,
+    supabase,
+    authUser,
+    isLoggedIn,
+    performLogin,
+    performLogout,
     currentRole,
     switchRole,
     currentView,
@@ -417,6 +736,12 @@ export function AppProvider({ children }) {
     setSelectedHotelAppId,
     selectedUserId,
     setSelectedUserId,
+    userLocation,
+    setUserLocation,
+    isDetectingLocation,
+    detectLocation,
+    setUserCity,
+    mealsWithDistance,
     meals,
     setMeals,
     updateMealStatus,
@@ -442,6 +767,7 @@ export function AppProvider({ children }) {
     showToast,
     bookMeal,
     cancelBooking,
+    expireBooking,
     markBookingHandedOver,
     markBookingReady,
     addNewSurplusListing,

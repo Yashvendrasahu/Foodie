@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
+import OpenStreetMap from '../../components/OpenStreetMap.jsx';
 import {
   CheckCircle2, Copy, Clock, AlertTriangle, MapPin, Phone,
   Navigation, XCircle, ShieldCheck, ChevronRight, Share2, Sparkles, Check
 } from 'lucide-react';
 
 export default function BookingConfirmedPage() {
-  const { selectedBookingId, bookings, cancelBooking, navigate, showToast } = useApp();
+  const { selectedBookingId, bookings, meals, userLocation, cancelBooking, navigate, showToast } = useApp();
   const [copied, setCopied] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
@@ -26,6 +27,9 @@ export default function BookingConfirmedPage() {
   }, []);
 
   const booking = bookings.find((b) => b.id === selectedBookingId) || bookings[0];
+  const associatedMeal = (meals || []).find((m) => m.id === booking.mealId || m.name === booking.mealTitle);
+  const restaurantLat = associatedMeal?.lat || 22.7245;
+  const restaurantLng = associatedMeal?.lng || 75.8640;
 
   const handleCopy = () => {
     navigator.clipboard?.writeText(booking.tokenCode || 'FD-4827');
@@ -251,31 +255,19 @@ export default function BookingConfirmedPage() {
             <span className="text-xs text-slate-500">Navigate to dedicated Foodie counter</span>
           </div>
 
-          {/* Map Preview Simulation */}
-          <div className="relative rounded-2xl overflow-hidden aspect-21/9 bg-slate-200 border border-slate-300">
-            <img
-              src="https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1000&q=80"
-              alt="Map Preview"
-              className="w-full h-full object-cover filter saturate-150 contrast-75 brightness-105"
-            />
-            <div className="absolute inset-0 bg-emerald-950/20" />
-            
-            {/* Center Pin */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-              <div className="w-10 h-10 rounded-full bg-emerald-700 text-white flex items-center justify-center shadow-xl ring-4 ring-white animate-bounce">
-                <MapPin className="w-5 h-5 fill-white" />
-              </div>
-              <span className="bg-slate-900 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow mt-1 whitespace-nowrap">
-                Sharma Restaurant (Counter 2)
-              </span>
-            </div>
-
-            {/* Distance badge */}
-            <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-md px-3 py-1 rounded-xl text-xs font-bold text-slate-800 shadow-sm flex items-center gap-1.5">
-              <Navigation className="w-3.5 h-3.5 text-emerald-700" />
-              <span>{booking.distance}</span>
-            </div>
-          </div>
+          {/* Live OpenStreetMap Interactive Route */}
+          <OpenStreetMap
+            singleLocation={{
+              lat: restaurantLat,
+              lng: restaurantLng,
+              restaurant: booking.restaurantName,
+              address: booking.restaurantAddress,
+              pickupCounter: booking.pickupCounter
+            }}
+            userCoords={userLocation?.coords}
+            zoom={15}
+            height="260px"
+          />
 
           {/* Address details */}
           <div className="space-y-1">
@@ -288,20 +280,22 @@ export default function BookingConfirmedPage() {
 
           {/* Location Actions */}
           <div className="flex flex-wrap items-center gap-3 pt-2">
-            <button
-              onClick={() => alert(`Opening Google Maps navigation to: ${booking.restaurantAddress}`)}
-              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
+            <a
+              href={`https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${userLocation?.coords?.[0] || 22.72},${userLocation?.coords?.[1] || 75.86};${restaurantLat},${restaurantLng}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Navigation className="w-3.5 h-3.5" />
-              Get Directions
-            </button>
+              <span>Get Directions (OpenStreetMap) ↗</span>
+            </a>
 
             <button
-              onClick={() => alert('Calling Restaurant Desk: +91 98260 12345')}
-              className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs transition-colors flex items-center gap-1.5"
+              onClick={() => showToast('Calling Hotel Dispatch Desk: +91 98260 12345', 'info')}
+              className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Phone className="w-3.5 h-3.5 text-slate-500" />
-              Contact (+91 98260 12345)
+              <span>Contact (+91 98260 12345)</span>
             </button>
 
             <button

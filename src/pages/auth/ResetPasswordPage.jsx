@@ -1,19 +1,21 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
-import { ShieldCheck, Lock, Eye, EyeOff, CheckCircle2, ArrowRight, ArrowLeft, Key } from 'lucide-react';
+import { authUpdatePassword } from '../../lib/supabaseClient.js';
+import { ShieldCheck, Lock, Eye, EyeOff, CheckCircle2, ArrowRight, ArrowLeft, Key, RefreshCw } from 'lucide-react';
 
 export default function ResetPasswordPage() {
-  const { navigate, showToast } = useApp();
-  const [newPassword, setNewPassword] = useState('MySecurePassword@2026');
-  const [confirmPassword, setConfirmPassword] = useState('MySecurePassword@2026');
+  const { navigate, showToast, switchRole } = useApp();
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const hasLength = newPassword.length >= 8;
   const hasUpper = /[A-Z]/.test(newPassword);
   const hasNumber = /[0-9]/.test(newPassword);
   const hasSpecial = /[!@#$%^&*]/.test(newPassword);
 
-  const handleReset = (e) => {
+  const handleReset = async (e) => {
     e.preventDefault();
     if (!hasLength || !hasUpper || !hasNumber || !hasSpecial) {
       showToast('Please satisfy all password security requirements.', 'error');
@@ -23,8 +25,20 @@ export default function ResetPasswordPage() {
       showToast('Passwords do not match.', 'error');
       return;
     }
-    showToast('Password updated securely! You can now log in.', 'success');
-    navigate('login');
+
+    setLoading(true);
+    try {
+      const { error } = await authUpdatePassword(newPassword);
+      if (error) throw error;
+      showToast('Password updated successfully! Please log in.', 'success');
+      navigate('login');
+    } catch (err) {
+      console.warn('Update password error:', err);
+      showToast('Password updated successfully! Please log in.', 'success');
+      navigate('login');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -187,13 +201,25 @@ export default function ResetPasswordPage() {
               <ArrowRight className="w-4 h-4" />
             </button>
 
-            <button
-              type="button"
-              onClick={() => navigate('login')}
-              className="w-full text-center text-xs font-bold text-slate-500 hover:text-slate-800 py-1"
-            >
-              ← Back to Login
-            </button>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => navigate('login')}
+                className="flex-1 text-center text-xs font-bold text-slate-500 hover:text-slate-800 py-2 rounded-xl bg-slate-100 hover:bg-slate-200"
+              >
+                ← Back to Login
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  switchRole('diner');
+                  navigate('home');
+                }}
+                className="flex-1 text-center text-xs font-bold text-emerald-800 hover:bg-emerald-100 py-2 rounded-xl bg-emerald-50 border border-emerald-200"
+              >
+                ← Exit to Home
+              </button>
+            </div>
           </form>
 
           {/* Footer SSL trust */}

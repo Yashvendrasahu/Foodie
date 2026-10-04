@@ -17,14 +17,17 @@ export default function AdminFoodListingsPage() {
   const selectedMeal = meals.find(m => m.id === selectedMealId) || meals[0];
 
   const filteredMeals = meals.filter(meal => {
-    const matchesSearch = meal.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          meal.restaurantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          meal.id.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = (searchQuery || '').toLowerCase().trim();
+    const name = (meal.name || '').toLowerCase();
+    const rest = (meal.restaurantName || meal.restaurant || '').toLowerCase();
+    const id = (meal.id || '').toLowerCase();
+    const matchesSearch = !q || name.includes(q) || rest.includes(q) || id.includes(q);
+    const mealStatus = (meal.status || 'active').toLowerCase();
     const matchesStatus = statusFilter === 'all' || 
-                          (statusFilter === 'active' && meal.status === 'active') ||
-                          (statusFilter === 'paused' && meal.status === 'paused') ||
-                          (statusFilter === 'expired' && meal.status === 'expired') ||
-                          (statusFilter === 'sold_out' && meal.status === 'sold_out');
+                          (statusFilter === 'active' && (mealStatus === 'active' || mealStatus === 'available')) ||
+                          (statusFilter === 'paused' && mealStatus === 'paused') ||
+                          (statusFilter === 'expired' && mealStatus === 'expired') ||
+                          (statusFilter === 'sold_out' && (mealStatus === 'sold_out' || mealStatus === 'sold out'));
     const matchesCategory = categoryFilter === 'all' || meal.category === categoryFilter;
     return matchesSearch && matchesStatus && matchesCategory;
   });
@@ -204,7 +207,7 @@ export default function AdminFoodListingsPage() {
                                   )}
                                 </div>
                                 <div className="text-[11px] text-gray-500 flex items-center gap-1">
-                                  <span>{meal.restaurantName}</span>
+                                  <span>{meal.restaurantName || meal.restaurant || 'Commercial Kitchen'}</span>
                                   <span>•</span>
                                   <span className="font-mono text-gray-400">#{meal.id}</span>
                                 </div>
@@ -217,16 +220,16 @@ export default function AdminFoodListingsPage() {
                             </span>
                           </td>
                           <td className="py-3.5 px-3">
-                            <div className="font-bold text-emerald-700">₹{meal.discountedPrice}</div>
+                            <div className="font-bold text-emerald-700">₹{meal.discountedPrice || meal.rescuePrice}</div>
                             <div className="text-[10px] text-gray-400 line-through">₹{meal.originalPrice}</div>
-                            <div className="text-[10px] text-gray-600 font-semibold mt-0.5">{meal.portionsLeft} left</div>
+                            <div className="text-[10px] text-gray-600 font-semibold mt-0.5">{meal.portionsLeft || meal.portion_count || 1} left</div>
                           </td>
                           <td className="py-3.5 px-3 text-[11px]">
                             <div className="flex items-center gap-1 text-gray-800 font-medium">
                               <Clock className="w-3 h-3 text-emerald-600" />
-                              <span>{meal.pickupTime}</span>
+                              <span>{meal.pickupTime || meal.pickupWindow}</span>
                             </div>
-                            <div className="text-[10px] text-gray-400 mt-0.5">{meal.pickupWindowText}</div>
+                            <div className="text-[10px] text-gray-400 mt-0.5">{meal.pickupWindowText || meal.pickupWindow || 'Today'}</div>
                           </td>
                           <td className="py-3.5 px-3">
                             {meal.status === 'active' && (
@@ -327,15 +330,15 @@ export default function AdminFoodListingsPage() {
             {/* Restaurant Source & FSSAI Verification */}
             <div className="p-3 bg-gray-50 rounded-xl border border-gray-200/70 space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-gray-800">{selectedMeal?.restaurantName}</span>
+                <span className="font-bold text-gray-800">{selectedMeal?.restaurantName || selectedMeal?.restaurant || 'Commercial Kitchen'}</span>
                 <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
                   <ShieldCheck className="w-3.5 h-3.5" /> FSSAI Verified
                 </span>
               </div>
               <p className="text-[11px] text-gray-500 flex items-center gap-1">
-                <span>📍 {selectedMeal?.location}</span>
+                <span>📍 {selectedMeal?.restaurantAddress || selectedMeal?.location || 'Central City'}</span>
                 <span>•</span>
-                <span>⭐ {selectedMeal?.rating} rating</span>
+                <span>⭐ {selectedMeal?.rating || 4.8} rating</span>
               </p>
             </div>
 

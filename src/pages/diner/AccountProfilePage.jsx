@@ -60,8 +60,8 @@ export default function AccountProfilePage() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => alert('Activity Log: 15 meals collected safely from 6 partner restaurants.')}
-              className="bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs transition-colors"
+              onClick={() => showToast('Activity Log: 15 meals collected safely from 6 partner restaurants.', 'info')}
+              className="bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs transition-colors cursor-pointer"
             >
               View Activity Log
             </button>
@@ -505,7 +505,7 @@ export default function AccountProfilePage() {
                       Your login is protected with code prompts sent via Google Authenticator & backup SMS.
                     </p>
                   </div>
-                  <button onClick={() => alert('2FA Reconfiguration code generated.')} className="text-xs font-bold text-emerald-700 hover:underline text-left mt-3">
+                  <button onClick={() => showToast('2FA Reconfiguration link sent to your registered email.', 'info')} className="text-xs font-bold text-emerald-700 hover:underline text-left mt-3 cursor-pointer">
                     Reconfigure
                   </button>
                 </div>
@@ -538,7 +538,7 @@ export default function AccountProfilePage() {
                   <p className="text-[11px] text-slate-500 leading-relaxed">
                     Download a machine-readable JSON/CSV archive containing all your past bookings, ratings, and ecological metric logs.
                   </p>
-                  <button onClick={() => showToast('Archive requested. Download link sent to your email.', 'info')} className="bg-white border border-slate-200 hover:bg-slate-100 font-bold px-3.5 py-2 rounded-xl w-full">
+                  <button onClick={() => showToast('Archive requested. Download link sent to your email.', 'info')} className="bg-white border border-slate-200 hover:bg-slate-100 font-bold px-3.5 py-2 rounded-xl w-full cursor-pointer">
                     Request Archive File
                   </button>
                 </div>
@@ -550,7 +550,7 @@ export default function AccountProfilePage() {
                   <p className="text-[11px] text-rose-700 leading-relaxed">
                     Permanently deactivate your profile, forfeiting your rescue credentials, badge progress, and active wallet credits.
                   </p>
-                  <button onClick={() => alert('Account deletion confirmation sent.')} className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-3.5 py-2 rounded-xl w-full">
+                  <button onClick={() => showToast('Account deletion confirmation link emailed to you.', 'warning')} className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-3.5 py-2 rounded-xl w-full cursor-pointer">
                     Delete Account
                   </button>
                 </div>
@@ -574,13 +574,13 @@ export default function AccountProfilePage() {
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => navigate('admin-complaints')}
-                  className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-colors"
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer"
                 >
                   Contact Support
                 </button>
                 <button
-                  onClick={() => alert('FAQ: How do I collect food? Head to the counter and show your QR code.')}
-                  className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs px-3 py-2.5 rounded-xl border border-slate-200 shadow-xs"
+                  onClick={() => showToast('Quick FAQ: Show your Foodie Rescue Pass QR code at the hotel counter before pickup cutoff.', 'info')}
+                  className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs px-3 py-2.5 rounded-xl border border-slate-200 shadow-xs cursor-pointer"
                 >
                   FAQs
                 </button>

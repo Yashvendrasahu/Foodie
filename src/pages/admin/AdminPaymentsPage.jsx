@@ -12,9 +12,11 @@ export default function AdminPaymentsPage() {
   const [typeFilter, setTypeFilter] = useState('all');
 
   const filteredTransactions = transactions.filter(t => {
-    const matchesSearch = t.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          t.party.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = typeFilter === 'all' || t.type === typeFilter;
+    const q = (searchQuery || '').toLowerCase().trim();
+    const id = (t.id || '').toLowerCase();
+    const party = (t.party || t.partnerName || t.customerName || '').toLowerCase();
+    const matchesSearch = !q || id.includes(q) || party.includes(q);
+    const matchesType = typeFilter === 'all' || (t.type || '').toLowerCase() === typeFilter.toLowerCase();
     return matchesSearch && matchesType;
   });
 

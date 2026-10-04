@@ -7,11 +7,9 @@ import {
 } from 'lucide-react';
 
 export default function HeroSection() {
-  const { navigate, switchRole, meals } = useApp();
+  const { navigate, switchRole, meals, userLocation, detectLocation, isDetectingLocation } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
-  const [location, setLocation] = useState('Downtown & Campus Area');
   const [selectedQuickTag, setSelectedQuickTag] = useState('All');
-  const [isLocating, setIsLocating] = useState(false);
 
   const quickTags = [
     { label: 'All Surplus', icon: '✨' },
@@ -25,14 +23,6 @@ export default function HeroSection() {
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     navigate('explore');
-  };
-
-  const handleUseCurrentLocation = () => {
-    setIsLocating(true);
-    setTimeout(() => {
-      setLocation('Current Location (Within 2.5 km)');
-      setIsLocating(false);
-    }, 600);
   };
 
   const featuredMeal = meals[0] || {
@@ -97,22 +87,19 @@ export default function HeroSection() {
                 <div className="sm:col-span-5 relative flex items-center bg-gray-50 hover:bg-gray-100/80 rounded-xl px-3.5 py-2.5 transition border border-gray-200/70">
                   <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mr-2" />
                   <div className="flex-1 min-w-0">
-                    <span className="text-[10px] uppercase font-bold text-gray-400 block tracking-wider">Pickup Area</span>
-                    <input
-                      type="text"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      placeholder="Enter city or area..."
-                      className="w-full text-xs font-semibold text-gray-800 bg-transparent focus:outline-hidden truncate"
-                    />
+                    <span className="text-[10px] uppercase font-bold text-gray-400 block tracking-wider">Pickup Area (OpenStreetMap)</span>
+                    <div className="text-xs font-semibold text-gray-800 truncate">
+                      {userLocation?.name || 'Indore Central (Downtown & Campus)'}
+                    </div>
                   </div>
                   <button
                     type="button"
-                    onClick={handleUseCurrentLocation}
-                    title="Detect My Location"
-                    className="p-1 rounded-lg text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 transition"
+                    onClick={detectLocation}
+                    disabled={isDetectingLocation}
+                    title="Detect GPS coordinates using device location"
+                    className="p-1 rounded-lg text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 transition cursor-pointer"
                   >
-                    <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin text-emerald-600' : ''}`} />
+                    <Navigation className={`w-3.5 h-3.5 ${isDetectingLocation ? 'animate-spin text-blue-600' : ''}`} />
                   </button>
                 </div>
 

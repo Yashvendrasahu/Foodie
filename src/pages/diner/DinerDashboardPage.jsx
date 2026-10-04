@@ -259,8 +259,9 @@ export default function DinerDashboardPage() {
                     {activeBookings.length} pending pickup
                   </span>
                 </div>
-                <button onClick={() => alert('Pickup Rules: Show QR at counter, arrive within window.')} className="text-xs text-slate-400 hover:text-emerald-700 font-medium flex items-center gap-1">
-                  Rules & Timings <ChevronRight className="w-3.5 h-3.5" />
+                <button onClick={() => showToast('Pickup Policy: Present Foodie Rescue QR pass at kitchen counter during active window.', 'info')} className="text-xs text-slate-400 hover:text-emerald-700 font-medium flex items-center gap-1 cursor-pointer">
+                  <span>Rules & Timings</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
 
@@ -374,8 +375,8 @@ export default function DinerDashboardPage() {
                         </td>
                         <td className="px-5 py-3.5 text-right">
                           <button
-                            onClick={() => alert(`Receipt for ${item.title} (#${item.id}): ₹${item.amount} settled.`)}
-                            className="text-emerald-700 font-bold hover:underline"
+                            onClick={() => showToast(`Digital tax receipt for ${item.title} (#${item.id}): ₹${item.amount} paid & downloaded.`, 'success')}
+                            className="text-emerald-700 font-bold hover:underline cursor-pointer"
                           >
                             View Receipt
                           </button>

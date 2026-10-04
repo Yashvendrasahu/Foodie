@@ -8,7 +8,7 @@ import {
 import confetti from 'canvas-confetti';
 
 export default function PartnerBookingsPage() {
-  const { bookings, markBookingHandedOver, markBookingReady, navigate, showToast } = useApp();
+  const { bookings, markBookingHandedOver, markBookingReady, expireBooking, navigate, showToast } = useApp();
   const [tokenInput, setTokenInput] = useState('FD-4827');
   const [verifiedToken, setVerifiedToken] = useState(null);
   const [activeTab, setActiveTab] = useState('All');
@@ -206,11 +206,11 @@ export default function PartnerBookingsPage() {
                     )}
 
                     <button
-                      onClick={() => alert(`Printing kitchen slip for token #${verifiedToken.tokenCode}...`)}
-                      className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs flex items-center gap-1.5"
+                      onClick={() => showToast(`Parcel receipt printed for token #${verifiedToken.tokenCode}`, 'success')}
+                      className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs flex items-center gap-1.5 cursor-pointer"
                     >
                       <Printer className="w-3.5 h-3.5 text-slate-500" />
-                      Print Parcel Slip
+                      <span>Print Parcel Slip</span>
                     </button>
                   </div>
                 </div>
@@ -377,15 +377,29 @@ export default function PartnerBookingsPage() {
                       {b.status === 'Confirmed' && (
                         <button
                           onClick={() => markBookingReady(b.id)}
-                          className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition-colors"
+                          className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                         >
                           Mark Ready
                         </button>
                       )}
 
+                      {(b.status === 'Confirmed' || b.status === 'Ready for Pickup') && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Mark token #${b.tokenCode} as expired? ${b.portions} portion(s) will be restored to your surplus listing.`)) {
+                              expireBooking(b.id);
+                            }
+                          }}
+                          className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                          title="Uncollected by customer - restore portions to inventory"
+                        >
+                          Expire
+                        </button>
+                      )}
+
                       <button
                         onClick={() => navigate('partner-booking-detail', { bookingId: b.id })}
-                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-2.5 py-1.5 rounded-lg transition-colors"
+                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
                       >
                         Details
                       </button>
@@ -427,7 +441,13 @@ export default function PartnerBookingsPage() {
               <div className="text-sm font-extrabold text-emerald-950">1800-FOODIE-HELP</div>
               <p className="text-[10px] text-emerald-800/80">Assistance with no-shows or diner mismatches</p>
             </div>
-            <button onClick={() => alert('Opening Partner Support Dispute Ticket...')} className="text-xs font-bold text-emerald-800 underline text-left">
+            <button
+              onClick={() => {
+                navigate('admin-complaints');
+                showToast('Opened Partner Support & Dispute Ticket Queue', 'info');
+              }}
+              className="text-xs font-bold text-emerald-800 underline text-left cursor-pointer"
+            >
               Open Quick Dispute ↗
             </button>
           </div>

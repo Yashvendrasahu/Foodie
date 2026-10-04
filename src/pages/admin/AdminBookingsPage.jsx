@@ -35,8 +35,15 @@ export default function AdminBookingsPage() {
   };
 
   const filteredBookings = bookings.filter(b => {
-    if (searchFilter && !b.id.toLowerCase().includes(searchFilter.toLowerCase()) && !b.customerName.toLowerCase().includes(searchFilter.toLowerCase())) {
-      return false;
+    const q = (searchFilter || '').toLowerCase().trim();
+    if (q) {
+      const id = (b.id || b.tokenCode || '').toLowerCase();
+      const customer = (b.customerName || b.customer_name || '').toLowerCase();
+      const meal = (b.mealTitle || b.meal_title || '').toLowerCase();
+      const rest = (b.restaurantName || b.restaurant_name || '').toLowerCase();
+      if (!id.includes(q) && !customer.includes(q) && !meal.includes(q) && !rest.includes(q)) {
+        return false;
+      }
     }
     if (activeTab === 'All') return true;
     if (activeTab === 'Active') return b.status === 'Ready for Pickup' || b.status === 'Confirmed';

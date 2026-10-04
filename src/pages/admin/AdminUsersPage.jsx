@@ -16,11 +16,14 @@ export default function AdminUsersPage() {
   const selectedUser = users.find(u => u.id === selectedUserId) || users[0];
 
   const filteredUsers = users.filter(u => {
-    const matchesSearch = u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          u.phone.includes(searchQuery) ||
-                          u.id.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = roleFilter === 'all' || u.role === roleFilter;
+    const q = (searchQuery || '').toLowerCase().trim();
+    const name = (u.name || u.full_name || '').toLowerCase();
+    const email = (u.email || '').toLowerCase();
+    const phone = (u.phone || '').toLowerCase();
+    const id = (u.id || '').toLowerCase();
+    const matchesSearch = !q || name.includes(q) || email.includes(q) || phone.includes(q) || id.includes(q);
+    const userRole = (u.role || 'diner').toLowerCase();
+    const matchesRole = roleFilter === 'all' || userRole === roleFilter.toLowerCase();
     return matchesSearch && matchesRole;
   });
 

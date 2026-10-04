@@ -239,8 +239,8 @@ export default function PartnerBookingDetailPage() {
                   <div className="flex items-center gap-2 pt-1">
                     <span className="text-slate-600">{booking.customerPhone}</span>
                     <button
-                      onClick={() => alert(`Calling customer ${booking.customerName} (${booking.customerPhone})...`)}
-                      className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[10px] px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-xs"
+                      onClick={() => showToast(`Initiating direct call to ${booking.customerName} at ${booking.customerPhone}`, 'info')}
+                      className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[10px] px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-xs cursor-pointer"
                     >
                       <Phone className="w-3 h-3" /> Call Customer
                     </button>

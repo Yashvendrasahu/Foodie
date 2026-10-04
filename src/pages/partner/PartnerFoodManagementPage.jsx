@@ -10,11 +10,17 @@ export default function PartnerFoodManagementPage() {
   const { meals, updateMealStatus, deleteMeal, navigate, showToast } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
 
-  const partnerMeals = meals.filter(m => m.restaurantId === 'rest-sharma');
-  const filteredMeals = partnerMeals.filter(m =>
-    m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    m.category.toLowerCase().includes(searchQuery.toLowerCase())
+  const partnerMeals = meals.filter(m => 
+    m.restaurantId === 'rest-sharma' || 
+    (m.restaurant || m.restaurantName || '').toLowerCase().includes('sharma') ||
+    m.isPartnerCreated
   );
+  const filteredMeals = partnerMeals.filter(m => {
+    const q = (searchQuery || '').toLowerCase().trim();
+    return !q ||
+      (m.name || '').toLowerCase().includes(q) ||
+      (m.category || '').toLowerCase().includes(q);
+  });
 
   return (
     <PartnerLayout activePage="food">
