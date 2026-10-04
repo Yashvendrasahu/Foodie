@@ -19,7 +19,7 @@ const PRESET_FOOD_PHOTOS = [
 ];
 
 export default function PartnerAddFoodPage() {
-  const { addNewSurplusListing, navigate, showToast } = useApp();
+  const { addNewSurplusListing, navigate, showToast, partnerProfile } = useApp();
 
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
@@ -38,9 +38,11 @@ export default function PartnerAddFoodPage() {
   const [startTime, setStartTime] = useState('06:00 PM');
   const [endTime, setEndTime] = useState('08:00 PM');
   const [counterGuidance, setCounterGuidance] = useState(
-    'Please collect the food from Takeaway Counter #2 near the main reception desk. Show your Foodie digital token or QR code to staff member Rajat.'
+    partnerProfile?.pickupInstructions || 'Please collect the food from Takeaway Counter #2 near the main reception desk. Show your Foodie digital token or QR code to staff member Rajat.'
   );
-  const [restaurantAddress, setRestaurantAddress] = useState('Plot 42, University Commercial Complex, Sector 4, MG Road, Indore');
+  const [restaurantAddress, setRestaurantAddress] = useState(
+    partnerProfile?.address || 'Plot 42, University Commercial Complex, Sector 4, MG Road, Indore'
+  );
   const [kitchenCoords, setKitchenCoords] = useState({ lat: 22.7245, lng: 75.8640 });
   const [safetyCertified, setSafetyCertified] = useState(true);
   
@@ -154,8 +156,10 @@ export default function PartnerAddFoodPage() {
       startTime: startTime,
       endTime: endTime,
       image: photoUrl,
-      pickupCounter: counterGuidance ? 'Takeaway Counter #1' : 'Takeaway Counter #1',
-      restaurantAddress: restaurantAddress,
+      pickupCounter: counterGuidance || 'Takeaway Counter #1',
+      restaurant: partnerProfile?.name || 'Sharma Pure Veg Restaurant',
+      restaurantAddress: restaurantAddress || partnerProfile?.address || 'Plot 42, MG Road, Indore',
+      fssaiLic: partnerProfile?.fssai || '1001901100234',
       lat: kitchenCoords.lat,
       lng: kitchenCoords.lng
     });

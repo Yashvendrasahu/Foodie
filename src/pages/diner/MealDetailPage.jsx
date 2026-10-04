@@ -4,15 +4,26 @@ import OpenStreetMap from '../../components/OpenStreetMap.jsx';
 import {
   Clock, MapPin, ShieldCheck, Leaf, CheckCircle2, ChevronRight,
   Sparkles, AlertCircle, ShoppingBag, Plus, Minus, ArrowRight,
-  Navigation, Utensils, Award
+  Navigation, Utensils, Award, Lock, User, X
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function MealDetailPage() {
-  const { selectedMealId, meals, bookMeal, navigate, userLocation } = useApp();
+  const {
+    selectedMealId,
+    meals,
+    bookMeal,
+    navigate,
+    userLocation,
+    isLoggedIn,
+    authUser,
+    showToast,
+    performLogin
+  } = useApp();
   const [portions, setPortions] = useState(1);
   const [specialNote, setSpecialNote] = useState('');
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const meal = meals.find((m) => m.id === selectedMealId) || meals[0];
 
@@ -23,12 +34,36 @@ export default function MealDetailPage() {
   const savings = (meal.originalPrice * portions) - totalAmount;
 
   const handleBooking = () => {
+    // Strict authentication check: Unauthenticated users CANNOT book
+    if (!isLoggedIn || !authUser) {
+      showToast('Bina login ke booking nahi ho sakti. Kripya pehle login kariye.', 'error');
+      setShowLoginModal(true);
+      return;
+    }
+
     confetti({
       particleCount: 80,
       spread: 60,
       origin: { y: 0.7 }
     });
     bookMeal(meal, portions, specialNote);
+  };
+
+  const handleQuickLoginAndBook = () => {
+    const demoDiner = {
+      id: 'USR-9021',
+      email: 'rahul.sharma@example.com',
+      user_metadata: {
+        full_name: 'Rahul Sharma',
+        role: 'diner'
+      }
+    };
+    performLogin(demoDiner, 'diner');
+    showToast('Signed in as Rahul Sharma (Diner)! Processing your reservation...', 'success');
+    setShowLoginModal(false);
+    setTimeout(() => {
+      bookMeal(meal, portions, specialNote);
+    }, 200);
   };
 
   const otherMeals = meals.filter((m) => m.id !== meal.id).slice(0, 4);
@@ -472,20 +507,52 @@ export default function MealDetailPage() {
                 <span><strong>Self-Pickup Only:</strong> Collect from restaurant counter before closing. No delivery.</span>
               </div>
 
-              {/* Reserve Now Button */}
+              {/* Login Requirement Banner if user is not logged in */}
+              {!isLoggedIn && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex items-start gap-3 text-xs text-amber-900 animate-in fade-in">
+                  <div className="w-7 h-7 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
+                    <Lock className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-bold text-amber-950 flex items-center justify-between">
+                      <span>Booking ke liye Login zaroori hai</span>
+                      <span className="text-[10px] bg-amber-200/70 px-2 py-0.5 rounded font-extrabold uppercase">Required</span>
+                    </div>
+                    <p className="text-amber-800 mt-0.5 text-[11px] leading-relaxed">
+                      Bina login ke food reserve nahi ho sakta. Kripya pehle apne account me login karein.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Reserve Now / Login Required Button */}
               <button
                 onClick={handleBooking}
                 disabled={meal.portionsLeft === 0}
                 className={`w-full font-bold py-3.5 px-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm ${
                   meal.portionsLeft === 0
                     ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
+                    : !isLoggedIn
+                    ? 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white hover:shadow-xl cursor-pointer'
                     : 'bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white hover:shadow-xl cursor-pointer'
                 }`}
               >
-                <ShoppingBag className="w-4 h-4" />
-                {meal.portionsLeft === 0
-                  ? 'Sold Out - No Portions Available'
-                  : `Reserve ${portions} Portion${portions > 1 ? 's' : ''} (₹${totalAmount})`}
+                {meal.portionsLeft === 0 ? (
+                  <>
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>Sold Out - No Portions Available</span>
+                  </>
+                ) : !isLoggedIn ? (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    <span>Pehle Login Karein to Reserve (₹{totalAmount})</span>
+                  </>
+                ) : (
+                  <>
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>Reserve {portions} Portion{portions > 1 ? 's' : ''} (₹{totalAmount})</span>
+                  </>
+                )}
               </button>
 
               {/* Guarantees list */}
@@ -542,6 +609,78 @@ export default function MealDetailPage() {
 
         </div>
       </div>
+
+      {/* Login Required Modal */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 relative">
+            <button
+              onClick={() => setShowLoginModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-100 transition"
+              aria-label="Close modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Icon & Title */}
+            <div className="text-center space-y-2 pt-2">
+              <div className="w-14 h-14 bg-amber-100 text-amber-800 rounded-2xl flex items-center justify-center mx-auto shadow-inner border border-amber-200">
+                <Lock className="w-7 h-7 text-amber-700" />
+              </div>
+              <span className="inline-block bg-amber-50 text-amber-800 text-[10px] font-extrabold px-3 py-1 rounded-full border border-amber-200 uppercase tracking-wider">
+                Authentication Required
+              </span>
+              <h3 className="text-xl font-extrabold text-slate-900">
+                Pehle Login Kariye
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed max-w-xs mx-auto">
+                Surplus food reservation confirm karne aur apna digital pickup token/QR code paane ke liye account me login hona zaroori hai.
+              </p>
+            </div>
+
+            {/* Order Summary Snapshot */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1.5 text-xs">
+              <div className="flex items-center justify-between text-slate-500">
+                <span>Reserving Item:</span>
+                <span className="font-bold text-slate-800 truncate max-w-[180px]">{meal.name}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500">
+                <span>Portions & Total:</span>
+                <span className="font-bold text-emerald-800">{portions} portion(s) • ₹{totalAmount}</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="space-y-2.5">
+              <button
+                onClick={() => {
+                  setShowLoginModal(false);
+                  navigate('login', { returnMealId: meal.id });
+                }}
+                className="w-full bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-bold py-3 px-4 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-xs cursor-pointer"
+              >
+                <span>Sign In / Create Account with Email</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <button
+                onClick={handleQuickLoginAndBook}
+                className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2 text-xs cursor-pointer"
+              >
+                <User className="w-4 h-4 text-emerald-700" />
+                <span>⚡ Quick Login as Rahul Sharma (Demo Diner) & Confirm</span>
+              </button>
+
+              <button
+                onClick={() => setShowLoginModal(false)}
+                className="w-full py-2 text-slate-500 hover:text-slate-800 text-xs font-semibold text-center hover:underline cursor-pointer"
+              >
+                Continue Browsing as Guest
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

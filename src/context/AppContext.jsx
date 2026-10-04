@@ -41,6 +41,10 @@ const AppContext = createContext();
 export function AppProvider({ children }) {
   // Current Role: 'diner' | 'partner' | 'admin'
   const [currentRole, setCurrentRole] = useState(() => {
+    try {
+      const savedRole = localStorage.getItem('foodie_role');
+      if (savedRole && ['diner', 'partner', 'admin'].includes(savedRole)) return savedRole;
+    } catch {}
     return 'diner';
   });
 
@@ -56,7 +60,7 @@ export function AppProvider({ children }) {
 
   const isLoggedIn = Boolean(authUser);
 
-  // Sync authUser to localStorage
+  // Sync authUser & role to localStorage
   useEffect(() => {
     if (authUser) {
       localStorage.setItem('foodie_auth_user', JSON.stringify(authUser));
@@ -64,6 +68,12 @@ export function AppProvider({ children }) {
       localStorage.removeItem('foodie_auth_user');
     }
   }, [authUser]);
+
+  useEffect(() => {
+    if (currentRole) {
+      localStorage.setItem('foodie_role', currentRole);
+    }
+  }, [currentRole]);
 
   // Navigation route:
   // Diner: 'home', 'explore', 'meal-detail', 'booking-confirmed', 'dashboard', 'profile', 'login', 'signup', 'forgot-password', 'reset-password', 'system-states'
@@ -143,6 +153,46 @@ export function AppProvider({ children }) {
       promotionalImpact: false
     }
   });
+
+  // Partner / Commercial Kitchen Profile State
+  const [partnerProfile, setPartnerProfile] = useState(() => {
+    try {
+      const saved = localStorage.getItem('foodie_partner_profile');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {
+      name: 'Sharma Pure Veg Restaurant & Sweets',
+      type: 'Fine Dining / Pure Veg Thali & Sweets',
+      owner: 'Satish Sharma',
+      phone: '+91 98765 43210',
+      email: 'sharma.veg@foodie-partner.in',
+      address: 'Shop 12-14, Ground Floor, Heritage Square, MG Road, Indore 452001',
+      city: 'Indore',
+      fssai: '11521034000128',
+      gstin: '27AABCS1429B1Z8',
+      bankAccount: 'HDFC0001289 - 5010048291039',
+      operatingHours: '11:00 AM - 11:30 PM (Daily)',
+      logo: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=600&q=80',
+      pickupInstructions: 'Takeaway Counter #2 near main billing desk. Show digital token or QR code.',
+      autoAccept: true
+    };
+  });
+
+  // Keep partnerProfile synced if authUser metadata changes
+  useEffect(() => {
+    if (authUser && (authUser.user_metadata?.restaurant_name || authUser.user_metadata?.role === 'partner')) {
+      setPartnerProfile(prev => ({
+        ...prev,
+        name: authUser.user_metadata?.restaurant_name || prev.name,
+        owner: authUser.user_metadata?.full_name || prev.owner,
+        email: authUser.email || prev.email,
+        phone: authUser.user_metadata?.phone || prev.phone,
+        fssai: authUser.user_metadata?.fssai_license || prev.fssai,
+        logo: authUser.user_metadata?.restaurant_photo || prev.logo,
+        address: authUser.user_metadata?.address || prev.address
+      }));
+    }
+  }, [authUser]);
 
   // User Geolocation & OpenStreetMap state
   const [userLocation, setUserLocation] = useState(() => {
@@ -444,20 +494,17 @@ export function AppProvider({ children }) {
   // Navigate helper
   const navigate = (view, extraParams = {}) => {
     if (extraParams.mealId) setSelectedMealId(extraParams.mealId);
+    if (extraParams.returnMealId) setSelectedMealId(extraParams.returnMealId);
     if (extraParams.bookingId) setSelectedBookingId(extraParams.bookingId);
     if (extraParams.ticketId) setSelectedTicketId(extraParams.ticketId);
     if (extraParams.hotelAppId) setSelectedHotelAppId(extraParams.hotelAppId);
     if (extraParams.userId) setSelectedUserId(extraParams.userId);
     
-    // Auto switch role if navigating to admin or partner
+    // Auto switch role if explicitly navigating to admin or partner
     if (view.startsWith('partner-')) {
       setCurrentRole('partner');
     } else if (view.startsWith('admin-')) {
       setCurrentRole('admin');
-    } else if (['home', 'explore', 'meal-detail', 'booking-confirmed', 'dashboard', 'profile', 'login', 'signup', 'forgot-password', 'reset-password', 'system-states'].includes(view)) {
-      if (currentRole === 'admin' || currentRole === 'partner') {
-        // preserve role or allow switching
-      }
     }
     
     setCurrentView(view);
@@ -468,11 +515,16 @@ export function AppProvider({ children }) {
   const performLogin = (userData, role = 'diner') => {
     setAuthUser(userData);
     setCurrentRole(role);
+    try {
+      localStorage.setItem('foodie_auth_user', JSON.stringify(userData));
+      localStorage.setItem('foodie_role', role);
+    } catch {}
     if (userData?.user_metadata?.full_name || userData?.name) {
       setDinerProfile(prev => ({
         ...prev,
         name: userData?.user_metadata?.full_name || userData?.name || prev.name,
         email: userData?.email || prev.email,
+        phone: userData?.phone || prev.phone
       }));
     }
   };
@@ -488,25 +540,37 @@ export function AppProvider({ children }) {
     }
     setAuthUser(null);
     setCurrentRole('diner');
+    try {
+      localStorage.removeItem('foodie_auth_user');
+      localStorage.removeItem('foodie_role');
+    } catch {}
     setCurrentView('home');
-    showToast('Signed out successfully', 'info');
+    showToast('Signed out successfully. Switched to guest browsing.', 'info');
   };
 
   // Switch role and go to default landing for that role
   const switchRole = (newRole) => {
     setCurrentRole(newRole);
+    try {
+      localStorage.setItem('foodie_role', newRole);
+    } catch {}
     if (newRole === 'diner') {
       setCurrentView('home');
     } else if (newRole === 'partner') {
-      setCurrentView('partner-bookings');
+      setCurrentView('partner-dashboard');
     } else if (newRole === 'admin') {
-      setCurrentView('admin-bookings');
+      setCurrentView('admin-dashboard');
     }
     showToast(`Switched to ${newRole === 'diner' ? 'Diner Portal' : newRole === 'partner' ? 'Restaurant Partner Hub' : 'Platform Super Admin'}`, 'info');
   };
 
-  // Actions: Booking a meal
+  // Actions: Booking a meal (STRICT AUTHENTICATION GUARD)
   const bookMeal = (meal, portions = 1, specialNote = '') => {
+    if (!authUser && !isLoggedIn) {
+      showToast('Bina login ke booking nahi ho sakti. Kripya pehle login kariye.', 'error');
+      navigate('login', { returnMealId: meal.id });
+      return false;
+    }
     const bookingId = `FD-${Math.floor(4800 + Math.random() * 900)}`;
     const otp = `${Math.floor(100 + Math.random() * 900)} - ${Math.floor(100 + Math.random() * 900)}`;
     const subtotal = meal.rescuePrice * portions;
@@ -783,6 +847,83 @@ export function AppProvider({ children }) {
     showToast(`Hotel verification updated to ${status}.`, 'info');
   };
 
+  // Partner Profile Management
+  const updatePartnerProfile = async (newDetails) => {
+    try {
+      const updated = { ...partnerProfile, ...newDetails };
+      setPartnerProfile(updated);
+      localStorage.setItem('foodie_partner_profile', JSON.stringify(updated));
+
+      // Also sync into authUser metadata if logged in
+      if (authUser) {
+        const updatedUser = {
+          ...authUser,
+          user_metadata: {
+            ...authUser.user_metadata,
+            full_name: updated.owner || authUser.user_metadata?.full_name,
+            restaurant_name: updated.name || authUser.user_metadata?.restaurant_name,
+            phone: updated.phone || authUser.user_metadata?.phone,
+            fssai_license: updated.fssai || authUser.user_metadata?.fssai_license,
+            address: updated.address || authUser.user_metadata?.address,
+            restaurant_photo: updated.logo || authUser.user_metadata?.restaurant_photo,
+          }
+        };
+        setAuthUser(updatedUser);
+        localStorage.setItem('foodie_auth_user', JSON.stringify(updatedUser));
+      }
+
+      // Sync associated meals/listings to display the updated restaurant name & address
+      setMeals(prev => prev.map(m => {
+        if (m.restaurant === partnerProfile.name || (authUser && m.partnerEmail === authUser.email)) {
+          return {
+            ...m,
+            restaurant: updated.name,
+            restaurantAddress: updated.address || m.restaurantAddress,
+            location: updated.address || m.location
+          };
+        }
+        return m;
+      }));
+
+      // Sync hotel verifications record
+      setHotelVerifications(prev => prev.map(h => {
+        if (h.name === partnerProfile.name || (authUser && h.contactEmail === authUser.email)) {
+          return {
+            ...h,
+            name: updated.name,
+            fssai: updated.fssai || h.fssai,
+            phone: updated.phone || h.phone,
+            location: updated.address || h.location
+          };
+        }
+        return h;
+      }));
+
+      // Direct write to Supabase profiles table if configured
+      if (isSupabaseConfigured && authUser?.id) {
+        try {
+          await supabase.from('profiles').update({
+            full_name: updated.owner,
+            restaurant_name: updated.name,
+            phone: updated.phone,
+            fssai_license: updated.fssai,
+            address: updated.address,
+            updated_at: new Date().toISOString()
+          }).eq('id', authUser.id);
+        } catch (dbErr) {
+          console.warn('Supabase profile table update warning:', dbErr);
+        }
+      }
+
+      showToast('✅ Partner profile and restaurant details updated successfully!', 'success');
+      return true;
+    } catch (err) {
+      console.error('Error updating partner profile:', err);
+      showToast('Failed to update partner profile', 'error');
+      return false;
+    }
+  };
+
   const updatePlatformSettings = (newSettings) => {
     setPlatformSettings(newSettings);
     showToast('Platform settings saved.', 'success');
@@ -853,6 +994,9 @@ export function AppProvider({ children }) {
     updatePlatformSettings,
     dinerProfile,
     setDinerProfile,
+    partnerProfile,
+    setPartnerProfile,
+    updatePartnerProfile,
     toastMessage,
     toast: toastMessage,
     showToast,

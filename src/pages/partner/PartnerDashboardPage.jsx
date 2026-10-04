@@ -9,11 +9,17 @@ import {
 } from 'lucide-react';
 
 export default function PartnerDashboardPage() {
-  const { meals, bookings, navigate, showToast } = useApp();
+  const { meals, bookings, navigate, showToast, partnerProfile } = useApp();
   const [showScannerModal, setShowScannerModal] = useState(false);
 
-  const activeMeals = meals.filter(m => m.restaurantId === 'rest-sharma' || (m.restaurant || '').includes('Sharma') || m.status === 'active');
-  const partnerBookings = bookings.filter(b => (b.restaurantName || '').includes('Sharma') || b.tokenCode);
+  const restaurantName = partnerProfile?.name || 'Sharma Pure Veg Restaurant';
+
+  const activeMeals = meals.filter(
+    m => m.restaurantId === 'rest-sharma' || (m.restaurant || '').toLowerCase().includes(restaurantName.toLowerCase()) || m.status === 'active'
+  );
+  const partnerBookings = bookings.filter(
+    b => (b.restaurantName || '').toLowerCase().includes(restaurantName.toLowerCase()) || b.tokenCode
+  );
 
   return (
     <PartnerLayout activePage="dashboard">
@@ -24,7 +30,7 @@ export default function PartnerDashboardPage() {
             <div>
               <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-200 text-xs font-semibold backdrop-blur-xs mb-2">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Verified Commercial Partner • Sharma Pure Veg Restaurant</span>
+                <span>Verified Commercial Partner • {restaurantName}</span>
               </div>
               <h1 className="text-2xl md:text-3xl font-bold">Good Afternoon, Kitchen Staff!</h1>
               <p className="text-emerald-100/80 text-sm mt-1 max-w-xl">

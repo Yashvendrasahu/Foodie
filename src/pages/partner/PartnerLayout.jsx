@@ -6,9 +6,35 @@ import {
   ChevronRight, Search, Menu, X, ArrowLeft
 } from 'lucide-react';
 
-export default function PartnerLayout({ children, activeTab = 'bookings' }) {
-  const { navigate, switchRole, showToast } = useApp();
+export default function PartnerLayout({ children, activeTab, activePage }) {
+  const { navigate, switchRole, showToast, performLogout, partnerProfile, currentRoute, currentView } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const restaurantName = partnerProfile?.name || 'Sharma Pure Veg Restaurant';
+  const initials = restaurantName
+    .split(' ')
+    .filter(Boolean)
+    .map(n => n[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || 'KP';
+
+  // Derive exact active tab from props or current route
+  const resolvedTab = (() => {
+    if (activeTab) return activeTab;
+    if (activePage) {
+      if (activePage === 'food') return 'listings';
+      return activePage;
+    }
+    const route = currentRoute || currentView;
+    if (route === 'partner-dashboard') return 'dashboard';
+    if (route === 'partner-add-food') return 'add-food';
+    if (route === 'partner-food') return 'listings';
+    if (route === 'partner-bookings' || route === 'partner-booking-detail') return 'bookings';
+    if (route === 'partner-analytics') return 'analytics';
+    if (route === 'partner-profile') return 'profile';
+    return 'dashboard';
+  })();
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, route: 'partner-dashboard' },
@@ -17,7 +43,6 @@ export default function PartnerLayout({ children, activeTab = 'bookings' }) {
     { id: 'bookings', label: 'Live Bookings', icon: ShoppingBag, route: 'partner-bookings' },
     { id: 'analytics', label: 'Analytics & Revenue', icon: BarChart3, route: 'partner-analytics' },
     { id: 'profile', label: 'Restaurant Profile', icon: Store, route: 'partner-profile' },
-    { id: 'settings', label: 'Kitchen Settings', icon: Settings, route: 'admin-settings' },
   ];
 
   return (
@@ -108,17 +133,21 @@ export default function PartnerLayout({ children, activeTab = 'bookings' }) {
             </button>
 
             {/* Restaurant Profile Badge */}
-            <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-              <div className="w-8 h-8 rounded-xl bg-emerald-800 text-white font-extrabold text-xs flex items-center justify-center">
-                SR
+            <button
+              onClick={() => navigate('partner-profile')}
+              className="flex items-center gap-2 pl-2 border-l border-slate-200 hover:opacity-90 transition cursor-pointer text-left"
+              title="View & Edit Kitchen Profile"
+            >
+              <div className="w-8 h-8 rounded-xl bg-emerald-800 text-white font-extrabold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                {initials}
               </div>
-              <div className="hidden sm:block text-left">
-                <h5 className="font-bold text-xs text-slate-900 leading-tight">Sharma Restaurant</h5>
+              <div className="hidden sm:block text-left max-w-[160px]">
+                <h5 className="font-bold text-xs text-slate-900 leading-tight truncate">{restaurantName}</h5>
                 <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-0.5">
-                  <CheckCircle2 className="w-2.5 h-2.5" /> Verified Partner
+                  <CheckCircle2 className="w-2.5 h-2.5 shrink-0" /> Verified Partner
                 </span>
               </div>
-            </div>
+            </button>
           </div>
 
         </div>
@@ -166,7 +195,7 @@ export default function PartnerLayout({ children, activeTab = 'bookings' }) {
             <nav className="flex-1 space-y-1 overflow-y-auto">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = activeTab === item.id;
+                const isActive = resolvedTab === item.id;
                 return (
                   <button
                     key={item.id}
@@ -176,10 +205,10 @@ export default function PartnerLayout({ children, activeTab = 'bookings' }) {
                     }}
                     className={`w-full text-left px-3.5 py-2.5 rounded-xl flex items-center gap-2.5 transition-colors text-xs font-semibold ${
                       isActive
-                        ? 'bg-emerald-700 text-white shadow-xs'
+                        ? 'bg-emerald-700 text-white shadow-xs font-bold ring-1 ring-emerald-600'
                         : item.highlight
                         ? 'text-emerald-700 font-bold bg-emerald-50 hover:bg-emerald-100'
-                        : 'text-slate-600 hover:bg-slate-100'
+                        : 'text-slate-600 hover:bg-slate-100 font-medium'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -193,12 +222,12 @@ export default function PartnerLayout({ children, activeTab = 'bookings' }) {
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  navigate('login');
+                  performLogout();
                 }}
                 className="w-full text-left px-3.5 py-2.5 rounded-xl bg-rose-50 text-rose-700 font-bold text-xs flex items-center gap-2"
               >
                 <LogOut className="w-4 h-4" />
-                <span>Partner Logout / Switch Role</span>
+                <span>Partner Logout</span>
               </button>
             </div>
           </div>
@@ -213,17 +242,17 @@ export default function PartnerLayout({ children, activeTab = 'bookings' }) {
           <nav className="space-y-1 text-xs font-semibold">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeTab === item.id;
+              const isActive = resolvedTab === item.id;
               return (
                 <button
                   key={item.id}
                   onClick={() => navigate(item.route)}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-xl flex items-center gap-2.5 transition-colors ${
+                  className={`w-full text-left px-3.5 py-2.5 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer ${
                     isActive
-                      ? 'bg-emerald-700 text-white shadow-xs'
+                      ? 'bg-emerald-700 text-white shadow-xs font-bold ring-1 ring-emerald-600'
                       : item.highlight
                       ? 'text-emerald-700 font-bold bg-emerald-50 hover:bg-emerald-100'
-                      : 'text-slate-600 hover:bg-slate-100'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -242,17 +271,17 @@ export default function PartnerLayout({ children, activeTab = 'bookings' }) {
               className="w-full text-left px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Back to Diner Store</span>
+              <span>Preview Diner Store</span>
             </button>
 
             <button
               onClick={() => {
-                navigate('login');
+                performLogout();
               }}
               className="w-full text-left px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
-              <span>Partner Logout / Switch</span>
+              <span>Partner Logout</span>
             </button>
           </div>
         </aside>

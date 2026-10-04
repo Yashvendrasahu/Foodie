@@ -58,7 +58,19 @@ export default function LoginPage() {
 
   // Quick Demo Login Helper
   const handleQuickDemoLogin = (role = selectedRole) => {
-    if (role === 'partner') {
+    if (role === 'admin') {
+      const demoAdmin = {
+        id: 'usr-admin-super',
+        email: 'admin@foodie.org',
+        user_metadata: {
+          full_name: 'Super Admin',
+          role: 'admin'
+        }
+      };
+      performLogin(demoAdmin, 'admin');
+      showToast('Signed in as Platform Super Admin!', 'success');
+      navigate('admin-dashboard');
+    } else if (role === 'partner') {
       const demoPartner = {
         id: 'usr-sharma-partner',
         email: 'sharma@restaurant.com',
@@ -192,6 +204,11 @@ export default function LoginPage() {
   // Sign Up Handler with real Supabase Auth
   const handleSignUp = async (e) => {
     e.preventDefault();
+    if (selectedRole === 'admin') {
+      showToast('Admin accounts cannot be self-registered. Please sign in with admin credentials.', 'error');
+      return;
+    }
+
     if (!email || !password || !fullName) {
       showToast('Please fill in all required fields.', 'error');
       return;
@@ -512,7 +529,12 @@ export default function LoginPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setAuthMode('signup')}
+                      onClick={() => {
+                        setAuthMode('signup');
+                        if (selectedRole === 'admin') {
+                          setSelectedRole('diner');
+                        }
+                      }}
                       className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
                         authMode === 'signup'
                           ? 'bg-white text-slate-900 shadow-xs'
@@ -524,62 +546,131 @@ export default function LoginPage() {
                   </div>
 
                   <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 hidden sm:inline-block">
-                    {authMode === 'signin' ? 'Secure Login' : 'Email Verification Enabled'}
+                    {authMode === 'signin' ? 'Secure Login' : 'Customer & Partner Sign Up'}
                   </span>
                 </div>
 
                 {/* Account Type Selector */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
-                    <span>Select Account Portal</span>
+                    <span>{authMode === 'signup' ? 'Select Registration Type' : 'Select Account Portal'}</span>
                     <span className="text-[10px] text-slate-400 lowercase font-normal">
-                      determines your destination
+                      {authMode === 'signup' ? 'create customer or partner account' : 'determines your destination'}
                     </span>
                   </label>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedRole('diner')}
-                      className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
-                        selectedRole === 'diner'
-                          ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/20'
-                          : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <User className={`w-5 h-5 ${selectedRole === 'diner' ? 'text-emerald-700' : 'text-slate-500'}`} />
-                        {selectedRole === 'diner' && (
-                          <span className="w-2 h-2 rounded-full bg-emerald-600" />
-                        )}
-                      </div>
-                      <div className="mt-2">
-                        <div className="font-bold text-xs text-slate-900">Diner Portal</div>
-                        <div className="text-[10px] text-slate-500">Rescue Surplus Meals</div>
-                      </div>
-                    </button>
+                  {authMode === 'signup' ? (
+                    /* In Create Account mode, only Diner and Kitchen Partner are available (Admin removed) */
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole('diner')}
+                        className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                          selectedRole === 'diner'
+                            ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <User className={`w-4 h-4 ${selectedRole === 'diner' ? 'text-emerald-700' : 'text-slate-500'}`} />
+                          {selectedRole === 'diner' && (
+                            <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                          )}
+                        </div>
+                        <div className="mt-2">
+                          <div className="font-bold text-xs text-slate-900">Diner (Customer)</div>
+                          <div className="text-[10px] text-slate-500 truncate">Book surplus discounted food</div>
+                        </div>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setSelectedRole('partner')}
-                      className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
-                        selectedRole === 'partner'
-                          ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/20'
-                          : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <Store className={`w-5 h-5 ${selectedRole === 'partner' ? 'text-emerald-700' : 'text-slate-500'}`} />
-                        {selectedRole === 'partner' && (
-                          <span className="w-2 h-2 rounded-full bg-emerald-600" />
-                        )}
-                      </div>
-                      <div className="mt-2">
-                        <div className="font-bold text-xs text-slate-900">Kitchen Partner</div>
-                        <div className="text-[10px] text-slate-500">List Food & Scan QR</div>
-                      </div>
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole('partner')}
+                        className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                          selectedRole === 'partner'
+                            ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <Store className={`w-4 h-4 ${selectedRole === 'partner' ? 'text-emerald-700' : 'text-slate-500'}`} />
+                          {selectedRole === 'partner' && (
+                            <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                          )}
+                        </div>
+                        <div className="mt-2">
+                          <div className="font-bold text-xs text-slate-900">Kitchen Partner</div>
+                          <div className="text-[10px] text-slate-500 truncate">List hotel / restaurant surplus</div>
+                        </div>
+                      </button>
+                    </div>
+                  ) : (
+                    /* In Sign In mode, Diner, Kitchen Partner, and Admin are available */
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole('diner')}
+                        className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                          selectedRole === 'diner'
+                            ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <User className={`w-4 h-4 ${selectedRole === 'diner' ? 'text-emerald-700' : 'text-slate-500'}`} />
+                          {selectedRole === 'diner' && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                          )}
+                        </div>
+                        <div className="mt-1.5">
+                          <div className="font-bold text-[11px] text-slate-900">Diner</div>
+                          <div className="text-[9px] text-slate-500 truncate">Rescue Food</div>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole('partner')}
+                        className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                          selectedRole === 'partner'
+                            ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <Store className={`w-4 h-4 ${selectedRole === 'partner' ? 'text-emerald-700' : 'text-slate-500'}`} />
+                          {selectedRole === 'partner' && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                          )}
+                        </div>
+                        <div className="mt-1.5">
+                          <div className="font-bold text-[11px] text-slate-900">Kitchen</div>
+                          <div className="text-[9px] text-slate-500 truncate">Partner Hub</div>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole('admin')}
+                        className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                          selectedRole === 'admin'
+                            ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <Shield className={`w-4 h-4 ${selectedRole === 'admin' ? 'text-emerald-700' : 'text-slate-500'}`} />
+                          {selectedRole === 'admin' && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                          )}
+                        </div>
+                        <div className="mt-1.5">
+                          <div className="font-bold text-[11px] text-slate-900">Admin</div>
+                          <div className="text-[9px] text-slate-500 truncate">Management</div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -856,11 +947,11 @@ export default function LoginPage() {
                         type="button"
                         onClick={() => {
                           setLoginError(null);
-                          handleQuickDemoLogin(selectedRole);
+                          setPassword('');
                         }}
                         className="py-1.5 px-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 font-bold text-[11px] rounded-lg text-center transition cursor-pointer shadow-xs"
                       >
-                        Sign In with Demo
+                        Try Again
                       </button>
                     </div>
                   </div>
@@ -878,47 +969,13 @@ export default function LoginPage() {
                     <>
                       <span>
                         {authMode === 'signin'
-                          ? `Sign In to ${selectedRole === 'partner' ? 'Kitchen Partner' : 'Diner'}`
+                          ? `Sign In to ${selectedRole === 'admin' ? 'Super Admin' : selectedRole === 'partner' ? 'Kitchen Partner' : 'Diner'}`
                           : `Create Verified ${selectedRole === 'partner' ? 'Kitchen Partner' : 'Diner'} Account`}
                       </span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
-
-                {/* One-click Demo helper pills */}
-                {authMode === 'signin' && (
-                  <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block text-center">
-                      Quick Instant Testing (1-Click Demo)
-                    </span>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleQuickDemoLogin('diner')}
-                        className="p-2 rounded-xl bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 border border-slate-200 text-left transition cursor-pointer"
-                      >
-                        <div className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
-                          <User className="w-3 h-3 text-emerald-600" />
-                          <span>Demo Diner</span>
-                        </div>
-                        <div className="text-[9px] text-slate-500">Rahul Sharma</div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleQuickDemoLogin('partner')}
-                        className="p-2 rounded-xl bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 border border-slate-200 text-left transition cursor-pointer"
-                      >
-                        <div className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
-                          <Store className="w-3 h-3 text-emerald-600" />
-                          <span>Demo Kitchen</span>
-                        </div>
-                        <div className="text-[9px] text-slate-500">Sharma Sweets</div>
-                      </button>
-                    </div>
-                  </div>
-                )}
 
                 {/* Cancel / Browse as Guest */}
                 <button

@@ -520,6 +520,55 @@ export async function dbUpdateUser(id, updates) {
   }
 }
 
+export async function dbGetProfile(userIdOrEmail) {
+  if (!isSupabaseConfigured || !supabase || !userIdOrEmail) return null;
+  try {
+    // 1. Try querying the 'profiles' table first
+    const isEmail = String(userIdOrEmail).includes('@');
+    let query = supabase.from('profiles').select('*');
+    query = isEmail ? query.eq('email', userIdOrEmail) : query.eq('id', userIdOrEmail);
+    
+    const { data: profile, error } = await query.maybeSingle();
+    if (!error && profile) {
+      return profile;
+    }
+
+    // 2. Fallback to 'users' table if profiles not yet populated
+    let userQuery = supabase.from('users').select('*');
+    userQuery = isEmail ? userQuery.eq('email', userIdOrEmail) : userQuery.eq('id', userIdOrEmail);
+    const { data: userRecord } = await userQuery.maybeSingle();
+    if (userRecord) {
+      return {
+        id: userRecord.id,
+        email: userRecord.email,
+        full_name: userRecord.name,
+        role: userRecord.role || 'diner',
+        status: userRecord.status?.toLowerCase() || 'active'
+      };
+    }
+    return null;
+  } catch (err) {
+    console.warn('dbGetProfile error:', err.message || err);
+    return null;
+  }
+}
+
+export async function dbUpsertProfile(profileData) {
+  if (!isSupabaseConfigured || !supabase || !profileData) return profileData;
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert(profileData, { onConflict: 'id' })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.warn('dbUpsertProfile error:', err.message || err);
+    return profileData;
+  }
+}
+
 // ==========================================
 // 7. SUPPORT TICKETS
 // ==========================================

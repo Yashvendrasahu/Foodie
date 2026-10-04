@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext.jsx';
 import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
+import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 // Diner Pages
 import HomePage from './pages/diner/HomePage.jsx';
@@ -36,6 +37,7 @@ import AdminUsersPage from './pages/admin/AdminUsersPage.jsx';
 import AdminBookingsPage from './pages/admin/AdminBookingsPage.jsx';
 import AdminPaymentsPage from './pages/admin/AdminPaymentsPage.jsx';
 import AdminComplaintsPage from './pages/admin/AdminComplaintsPage.jsx';
+import AdminReportsPage from './pages/admin/AdminReportsPage.jsx';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage.jsx';
 
 function AppContent() {
@@ -48,19 +50,33 @@ function AppContent() {
 
   const renderRoute = () => {
     switch (currentRoute) {
-      // Diner Routes
+      // Diner Routes (Public & Semi-Public)
       case 'home':
         return <HomePage />;
       case 'explore':
         return <ExploreFoodPage />;
       case 'meal-detail':
         return <MealDetailPage />;
+
+      // Customer Protected Routes
       case 'booking-confirmed':
-        return <BookingConfirmedPage />;
+        return (
+          <ProtectedRoute allowedRoles={['diner']} portalName="Booking Confirmation">
+            <BookingConfirmedPage />
+          </ProtectedRoute>
+        );
       case 'dashboard':
-        return <DinerDashboardPage />;
+        return (
+          <ProtectedRoute allowedRoles={['diner']} portalName="Customer Bookings Dashboard">
+            <DinerDashboardPage />
+          </ProtectedRoute>
+        );
       case 'profile':
-        return <AccountProfilePage />;
+        return (
+          <ProtectedRoute allowedRoles={['diner', 'partner', 'admin']} portalName="Account Profile">
+            <AccountProfilePage />
+          </ProtectedRoute>
+        );
 
       // Auth Routes
       case 'login':
@@ -74,39 +90,105 @@ function AppContent() {
       case 'system-states':
         return <SystemStatesPage />;
 
-      // Partner Routes
+      // Food Business / Restaurant Partner Protected Routes
       case 'partner-dashboard':
-        return <PartnerDashboardPage />;
+        return (
+          <ProtectedRoute allowedRoles={['partner']} portalName="Kitchen Partner Hub">
+            <PartnerDashboardPage />
+          </ProtectedRoute>
+        );
       case 'partner-food':
-        return <PartnerFoodManagementPage />;
+        return (
+          <ProtectedRoute allowedRoles={['partner']} portalName="Surplus Food Inventory">
+            <PartnerFoodManagementPage />
+          </ProtectedRoute>
+        );
       case 'partner-add-food':
-        return <PartnerAddFoodPage />;
+        return (
+          <ProtectedRoute allowedRoles={['partner']} portalName="Create Surplus Listing">
+            <PartnerAddFoodPage />
+          </ProtectedRoute>
+        );
       case 'partner-bookings':
-        return <PartnerBookingsPage />;
+        return (
+          <ProtectedRoute allowedRoles={['partner']} portalName="Kitchen Live Bookings">
+            <PartnerBookingsPage />
+          </ProtectedRoute>
+        );
       case 'partner-booking-detail':
-        return <PartnerBookingDetailPage />;
+        return (
+          <ProtectedRoute allowedRoles={['partner']} portalName="Pickup Verification & Handover">
+            <PartnerBookingDetailPage />
+          </ProtectedRoute>
+        );
       case 'partner-analytics':
-        return <PartnerAnalyticsPage />;
+        return (
+          <ProtectedRoute allowedRoles={['partner']} portalName="Kitchen Analytics & Revenue">
+            <PartnerAnalyticsPage />
+          </ProtectedRoute>
+        );
       case 'partner-profile':
-        return <PartnerProfilePage />;
+        return (
+          <ProtectedRoute allowedRoles={['partner']} portalName="Restaurant Profile & Settings">
+            <PartnerProfilePage />
+          </ProtectedRoute>
+        );
 
-      // Admin Routes
+      // Platform Super Admin Protected Routes
       case 'admin-dashboard':
-        return <AdminDashboardPage />;
+        return (
+          <ProtectedRoute allowedRoles={['admin']} portalName="Platform Super Admin Dashboard">
+            <AdminDashboardPage />
+          </ProtectedRoute>
+        );
       case 'admin-food':
-        return <AdminFoodListingsPage />;
+        return (
+          <ProtectedRoute allowedRoles={['admin']} portalName="Listings Moderation">
+            <AdminFoodListingsPage />
+          </ProtectedRoute>
+        );
       case 'admin-hotels':
-        return <AdminHotelsPage />;
+        return (
+          <ProtectedRoute allowedRoles={['admin']} portalName="Hotel Verifications Management">
+            <AdminHotelsPage />
+          </ProtectedRoute>
+        );
       case 'admin-users':
-        return <AdminUsersPage />;
+        return (
+          <ProtectedRoute allowedRoles={['admin']} portalName="User Access Management">
+            <AdminUsersPage />
+          </ProtectedRoute>
+        );
       case 'admin-bookings':
-        return <AdminBookingsPage />;
+        return (
+          <ProtectedRoute allowedRoles={['admin']} portalName="Platform Bookings Monitor">
+            <AdminBookingsPage />
+          </ProtectedRoute>
+        );
       case 'admin-payments':
-        return <AdminPaymentsPage />;
+        return (
+          <ProtectedRoute allowedRoles={['admin']} portalName="Escrow & Financial Settlements">
+            <AdminPaymentsPage />
+          </ProtectedRoute>
+        );
       case 'admin-complaints':
-        return <AdminComplaintsPage />;
+        return (
+          <ProtectedRoute allowedRoles={['admin']} portalName="Disputes & Complaints Desk">
+            <AdminComplaintsPage />
+          </ProtectedRoute>
+        );
+      case 'admin-reports':
+        return (
+          <ProtectedRoute allowedRoles={['admin']} portalName="Platform Intelligence & Reports">
+            <AdminReportsPage />
+          </ProtectedRoute>
+        );
       case 'admin-settings':
-        return <AdminSettingsPage />;
+        return (
+          <ProtectedRoute allowedRoles={['admin']} portalName="System Configuration & Security">
+            <AdminSettingsPage />
+          </ProtectedRoute>
+        );
 
       default:
         return <HomePage />;

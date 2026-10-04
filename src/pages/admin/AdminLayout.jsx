@@ -6,9 +6,29 @@ import {
   CheckCircle2, Menu, X, ArrowLeft, ExternalLink, Globe
 } from 'lucide-react';
 
-export default function AdminLayout({ children, activeTab = 'bookings' }) {
-  const { navigate, switchRole, showToast } = useApp();
+export default function AdminLayout({ children, activeTab, activePage }) {
+  const { navigate, switchRole, showToast, performLogout, currentRoute, currentView } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Derive exact active tab from prop or current route
+  const resolvedTab = (() => {
+    if (activeTab) return activeTab;
+    if (activePage) {
+      if (activePage === 'food') return 'listings';
+      return activePage;
+    }
+    const route = currentRoute || currentView;
+    if (route === 'admin-dashboard') return 'dashboard';
+    if (route === 'admin-users') return 'users';
+    if (route === 'admin-hotels') return 'hotels';
+    if (route === 'admin-food') return 'listings';
+    if (route === 'admin-bookings') return 'bookings';
+    if (route === 'admin-payments') return 'payments';
+    if (route === 'admin-reports') return 'reports';
+    if (route === 'admin-complaints') return 'complaints';
+    if (route === 'admin-settings') return 'settings';
+    return 'dashboard';
+  })();
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, route: 'admin-dashboard' },
@@ -155,7 +175,7 @@ export default function AdminLayout({ children, activeTab = 'bookings' }) {
             <nav className="flex-1 space-y-1 overflow-y-auto">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = activeTab === item.id;
+                const isActive = resolvedTab === item.id;
                 return (
                   <button
                     key={item.id}
@@ -164,7 +184,7 @@ export default function AdminLayout({ children, activeTab = 'bookings' }) {
                       navigate(item.route);
                     }}
                     className={`w-full text-left px-3.5 py-2.5 rounded-xl flex items-center gap-2.5 transition-colors text-xs font-semibold ${
-                      isActive ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                      isActive ? 'bg-emerald-700 text-white shadow-xs font-bold ring-1 ring-emerald-600' : 'text-slate-600 hover:bg-slate-100 font-medium'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -178,12 +198,12 @@ export default function AdminLayout({ children, activeTab = 'bookings' }) {
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  navigate('login');
+                  performLogout();
                 }}
                 className="w-full text-left px-3.5 py-2.5 rounded-xl bg-rose-50 text-rose-700 font-bold text-xs flex items-center gap-2"
               >
                 <LogOut className="w-4 h-4" />
-                <span>Admin Logout / Switch Role</span>
+                <span>Admin Logout</span>
               </button>
             </div>
           </div>
@@ -198,17 +218,19 @@ export default function AdminLayout({ children, activeTab = 'bookings' }) {
           <nav className="space-y-1 text-xs font-semibold">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeTab === item.id;
+              const isActive = resolvedTab === item.id;
               return (
                 <button
                   key={item.id}
                   onClick={() => navigate(item.route)}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-xl flex items-center gap-2.5 transition-colors ${
-                    isActive ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                  className={`w-full text-left px-3.5 py-2.5 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer ${
+                    isActive
+                      ? 'bg-emerald-700 text-white shadow-xs font-bold ring-1 ring-emerald-600'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
-                  {item.label}
+                  <span>{item.label}</span>
                 </button>
               );
             })}
@@ -223,17 +245,17 @@ export default function AdminLayout({ children, activeTab = 'bookings' }) {
               className="w-full text-left px-3.5 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Back to Diner Store</span>
+              <span>Preview Diner Store</span>
             </button>
 
             <button
               onClick={() => {
-                navigate('login');
+                performLogout();
               }}
               className="w-full text-left px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
-              <span>Admin Logout / Switch</span>
+              <span>Admin Logout</span>
             </button>
           </div>
         </aside>

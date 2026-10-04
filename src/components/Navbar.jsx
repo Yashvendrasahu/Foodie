@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 
 export default function Navbar() {
-  const { currentView, navigate, dinerProfile, bookings, isLoggedIn, authUser, performLogout } = useApp();
+  const { currentView, navigate, dinerProfile, bookings, isLoggedIn, authUser, currentRole, switchRole, performLogout } = useApp();
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -92,18 +92,52 @@ export default function Navbar() {
             >
               Impact
             </button>
-            <button
-              onClick={() => navigate('login')}
-              className="transition-colors hover:text-emerald-700 cursor-pointer text-slate-600"
-            >
-              For Partners
-            </button>
+            {!isLoggedIn ? (
+              <button
+                onClick={() => navigate('login')}
+                className="transition-colors hover:text-emerald-700 cursor-pointer text-slate-600"
+              >
+                For Partners & Admin
+              </button>
+            ) : currentRole === 'partner' ? (
+              <button
+                onClick={() => navigate('partner-dashboard')}
+                className="bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 px-3 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>← Return to Partner Hub</span>
+              </button>
+            ) : currentRole === 'admin' ? (
+              <button
+                onClick={() => navigate('admin-dashboard')}
+                className="bg-emerald-800 text-white hover:bg-emerald-900 px-3 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>← Return to Admin Panel</span>
+              </button>
+            ) : null}
           </nav>
 
           {/* Right Action Area */}
           <div className="flex items-center gap-3">
             {isLoggedIn ? (
               <>
+                {/* Role indicator button if in partner/admin role */}
+                {currentRole === 'partner' && (
+                  <button
+                    onClick={() => navigate('partner-dashboard')}
+                    className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-200 cursor-pointer hover:bg-emerald-100"
+                  >
+                    <span>Partner Hub</span>
+                  </button>
+                )}
+                {currentRole === 'admin' && (
+                  <button
+                    onClick={() => navigate('admin-dashboard')}
+                    className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold text-white bg-emerald-800 px-2.5 py-1.5 rounded-xl cursor-pointer hover:bg-emerald-900"
+                  >
+                    <span>Admin Hub</span>
+                  </button>
+                )}
+
                 {/* My Bookings Quick Link */}
                 <button
                   onClick={() => navigate('dashboard')}
@@ -141,11 +175,39 @@ export default function Navbar() {
                   {profileDropdownOpen && (
                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                       <div className="px-4 py-2.5 border-b border-slate-100">
-                        <p className="text-xs font-bold text-slate-900 truncate">{displayName}</p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold text-slate-900 truncate">{displayName}</p>
+                          <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded">
+                            {currentRole}
+                          </span>
+                        </div>
                         <p className="text-[11px] text-slate-500 truncate">{displayEmail}</p>
                       </div>
 
                       <div className="py-1">
+                        {currentRole === 'partner' && (
+                          <button
+                            onClick={() => {
+                              navigate('partner-dashboard');
+                              setProfileDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50 flex items-center gap-2 cursor-pointer"
+                          >
+                            <span>🏢 Open Partner Dashboard</span>
+                          </button>
+                        )}
+                        {currentRole === 'admin' && (
+                          <button
+                            onClick={() => {
+                              navigate('admin-dashboard');
+                              setProfileDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50 flex items-center gap-2 cursor-pointer"
+                          >
+                            <span>🛡️ Open Admin Dashboard</span>
+                          </button>
+                        )}
+
                         <button
                           onClick={() => {
                             navigate('dashboard');
